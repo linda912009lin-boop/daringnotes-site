@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>音符找找樂（統一版＋可縮放＋提示框閃爍）</title>
+<style>
+:root{
+  --bg:#ffffff; --panel:#f6f7fb; --border:#d1d5db; --text:#0b1020;
+  --accent:#0ea5e9; --accent2:#10b981; --tile:#ffffff; --tile-border:#d1d5db;
+  --gap:10px; --cell:84px; /* 固定設計尺寸，透過整體縮放來適配各裝置 */
+}
+
+/* 基本樣式 */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--bg);color:var(--text);
+  font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial;
+  -webkit-text-size-adjust:100%; text-size-adjust:100%;
+}
+img{max-width:100%;height:auto;-webkit-user-drag:none;user-select:none}
+button{background:#fff;border:1px solid var(--border);padding:8px 12px;border-radius:10px;cursor:pointer;font-weight:700}
+button:hover{background:#f8fafc} button:disabled{opacity:.6;cursor:not-allowed}
+
+/* —— 統一版面：整體縮放容器 —— */
+#app{
+  width:1120px;              /* 設計寬度固定 */
+  position:absolute; left:0; top:0; transform-origin:top left;
+}
+.app-bg{position:fixed; inset:0; background:var(--bg);} /* 讓背景鋪滿視窗 */
+
+/* Header（取消 sticky，避免不同瀏覽器差異） */
+header{background:#fff;border-bottom:1px solid var(--border);padding:10px 14px;z-index:5}
+.hrow{display:grid;grid-template-columns:auto 1fr;gap:10px;margin:0 auto}
+.game-title{margin:0;font-weight:900;line-height:1.05;letter-spacing:.02em}
+.game-title span{display:inline;margin-right:.15em;font-size:56px}
+.game-title span:last-child{margin-right:0}
+.controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
+.stat{border:1px solid var(--border);padding:8px 12px;border-radius:10px;color:#374151;background:#fff}
+
+/* Main：固定兩欄，不做 RWD 斷點，靠整體縮放適配 */
+.wrap{margin:14px auto;padding:0 14px;display:grid;grid-template-columns:1fr 340px;gap:14px}
+.board,.panel{background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.05)}
+.board{padding:16px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;min-height:560px}
+.grid{display:grid;grid-template-columns:repeat(7,var(--cell));grid-auto-rows:var(--cell);gap:var(--gap)}
+.cell{background:var(--tile);border:1px solid var(--tile-border);border-radius:14px;display:flex;align-items:center;justify-content:center;width:var(--cell);height:var(--cell);position:relative}
+.cell img{width:90%;height:90%;object-fit:contain}
+.cell.selected{outline:2px solid var(--accent)}
+.cell.found{outline:2px solid var(--accent2);background:#ecfdf5}
+.cell.wrong{outline:2px solid #ef4444;background:#fef2f2}
+
+/* ✅ 新：提示以「框框閃爍」呈現（不再畫線） */
+.cell.hinted::after{
+  content:"";
+  position:absolute;
+  inset:-4px;                 /* 邊框稍微外擴，清楚可見 */
+  border:4px solid #f59e0b;   /* 橘色框 */
+  border-radius:14px;
+  box-shadow:
+    0 0 10px rgba(245,158,11,.8),
+    inset 0 0 6px rgba(245,158,11,.6);
+  animation:hintBlink .9s ease-in-out infinite;
+  pointer-events:none;
+}
+@keyframes hintBlink{
+  0%   { opacity:.35; transform:scale(.99); }
+  50%  { opacity:1;   transform:scale(1.01); }
+  100% { opacity:.35; transform:scale(.99); }
+}
+
+.panel{padding:14px;display:flex;flex-direction:column;min-height:560px}
+.mode{display:flex;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.mode input{display:none}
+.mode label{border:1px solid var(--border);padding:10px 12px;border-radius:10px;cursor:pointer;font-weight:800;background:#fff}
+.mode input:checked+label{outline:2px solid var(--accent2);background:#ecfdf5}
+.task{display:flex;flex-direction:column;gap:12px;border:1px dashed var(--border);border-radius:12px;background:#fff;padding:10px;align-items:center;height:100%;overflow:auto}
+.task img{height:120px;border:1px solid var(--border);border-radius:10px;background:#fff}
+.subtle{color:#515a6a;font-size:13px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.sep{flex:1}
+
+/* 視窗（absolute，與 #app 一起縮放） */
+.modal, #overlay, #wino{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:80}
+#overlay .card, #wino .card, .modal .box{
+  background:#fff;border:1px solid var(--border);border-radius:16px;
+  width:min(760px,92vw);max-height:92svh;padding:18px 16px;overflow:auto;
+  box-shadow:0 24px 70px rgba(0,0,0,.35)
+}
+#wino .card{border-radius:18px;padding:24px 22px}
+#wino h3{font-size:28px;margin:0 0 8px 0}
+#wino .stats{display:flex;justify-content:center;gap:16px;margin:10px 0 18px;flex-wrap:wrap}
+#wino .pill{padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:#f9fafb;font-weight:800}
+#playerName{width:min(360px,80%);padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:16px;margin:8px auto 0;display:block}
+
+#overlay .card{color:#111}
+#overlay .actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+#overlay .primary{border-color:#f59e0b;background:#fff7ed}
+
+.modal h2{margin:0 0 6px 0}.modal .lead{color:#4b5563;margin:0 0 10px 0}.modal .btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:12px}
+.table{width:100%;border-collapse:collapse;margin-top:10px}
+.table th,.table td{border:1px solid var(--border);padding:8px 10px;text-align:center}
+.table th{background:#f8fafc}
+.hidden{display:none !important}
+
+/* footer */
+footer{ text-align:center;font-size:12px;margin:16px 0 20px;color:#6b7280}
+footer a{color:#6b7280}
+</style>
+</head>
+<body>
+<div class="app-bg"></div>
+<div id="app" aria-label="統一版可縮放容器">
+  <header>
+    <div class="hrow">
+      <h1 class="game-title"><span>音符</span><span>找找樂</span></h1>
+      <div class="controls">
+        <button id="newGameBtn">新局</button>
+        <button id="shuffleBtn">重排盤面</button>
+        <button id="hintBtn">提示 ×<span id="hintsLeft">3</span></button>
+        <button id="pauseBtn">暫停</button>
+        <button id="leaderBtn">排行榜</button>
+        <div class="stat">分數：<b id="score">0</b>｜完成：<b id="done">0</b>/5｜計時：<b id="clock">00:00:00</b></div>
+        <div class="volume" title="背景音量">🎵 BGM
+          <input id="volBgm" type="range" min="0" max="1" step="0.01" value="0.5">
+          <button id="bgmToggle">播放BGM</button>
+        </div>
+        <div class="volume" title="音效音量（答對/答錯）">🔊 音效調整
+          <input id="volSfx" type="range" min="0" max="1" step="0.01" value="0.7">
+          <button id="testSfx">測試音效</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap" id="gameWrap">
+    <section class="board" id="boardSec">
+      <!-- 注意：已移除 <svg id="hintSvg">，提示改為框框閃爍 -->
+      <div id="grid" class="grid" aria-label="7x7 grid"></div>
+    </section>
+
+    <aside class="panel" id="sidePanel">
+      <div class="subtle">開始前，先選擇模式：</div>
+      <div class="mode" role="tablist">
+        <input type="radio" id="mode-sol" name="mode" value="solfege" checked><label for="mode-sol">唱名</label>
+        <input type="radio" id="mode-pit" name="mode" value="pitch"><label for="mode-pit">音名</label>
+      </div>
+      <div class="subtle">規則：抽出 <b>4</b> 張五線譜任務卡，在盤面中找「<b>直線、斜線或橫線</b>」連續四格，且順序一致。</div>
+      <div style="margin-top:10px" class="subtle">本回合任務（五線譜）：</div>
+      <div id="task" class="task"></div>
+      <div class="row">
+        <button id="rerollBtn">重抽任務</button>
+        <button id="clearSelBtn">清除選取</button>
+        <span class="sep"></span>
+      </div>
+    </aside>
+  </div>
+
+  <!-- 開局解說（按「開始遊戲」＝直接開新局） -->
+  <div id="introModal" class="modal" role="dialog" aria-modal="true">
+    <div class="box">
+      <h2>如何遊玩？</h2>
+      <p class="lead">抽出 4 張<strong>五線譜任務卡</strong>，在 7×7 盤面找出「<strong>直線、橫線或斜線</strong>」連續四格且<strong>順序一致</strong>。</p>
+      <ul style="text-align:left;line-height:1.6">
+        <li>開始前選擇：<b>唱名</b> 或 <b>音名</b>（盤面卡牌依模式顯示）</li>
+        <li>完成 5 組任務過關；正確 +10 分</li>
+        <li>30 秒無操作會跳一次提示；手動提示最多 3 次</li>
+      </ul>
+      <div class="btns">
+        <label><input type="radio" name="introMode" value="solfege" checked> 唱名</label>
+        <label><input type="radio" name="introMode" value="pitch"> 音名</label>
+      </div>
+      <div class="btns">
+        <button id="introStart" class="primary" style="border:1px solid #f59e0b;background:#fff7ed">開始遊戲</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 排行榜 -->
+  <div id="leaderModal" class="modal" role="dialog" aria-modal="true">
+    <div class="box">
+      <h2>排行榜</h2>
+      <p class="lead">依分數由高到低；同分以用時較短者優先。</p>
+      <table class="table" id="leaderTable"><thead><tr><th>#</th><th>玩家</th><th>分數</th><th>用時</th><th>日期</th></tr></thead><tbody></tbody></table>
+      <div class="btns">
+        <button id="clearLeaderboard">清除排行榜</button>
+        <button id="leaderClose">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 30 秒未操作提示（只出現一次） -->
+  <div id="overlay" class="modal" role="dialog" aria-modal="true" style="display:none">
+    <div class="box">
+      <h3>需要提示嗎？</h3>
+      <p>已經 30 秒沒有動作了，我可以高亮顯示正確路徑的四格。若還需要更多提示，請用右上「提示」按鍵（最多 3 次）。</p>
+      <div class="actions" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button id="overlayShowHint" class="primary" style="border:1px solid #f59e0b;background:#fff7ed">顯示提示</button>
+        <button id="overlayLater">稍後再說</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 過關結算 -->
+  <div id="wino" role="dialog" aria-modal="true" style="display:none">
+    <div class="card">
+      <h3>🎉 恭喜過關！</h3>
+      <div class="stats">
+        <div class="pill">⏱️ 時間：<span id="finalTime">00:00:00</span></div>
+        <div class="pill">🏆 分數：<span id="finalScore">0</span></div>
+      </div>
+      <div style="margin:8px 0 4px">請輸入你的名稱以加入排行榜：</div>
+      <input id="playerName" maxlength="20" placeholder="例如：小音符"/>
+      <div class="actions" style="margin-top:14px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button id="saveScoreBtn" class="primary" style="border:1px solid #0ea5e9;background:#eef6ff">儲存成績</button>
+        <button id="playAgain" class="primary" style="border:1px solid #10b981;background:#ecfdf5">再玩一次</button>
+        <button id="closeWin">關閉</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 音效（保留原路徑與檔名） -->
+  <audio id="bgm" src="audio/bgm.mp3" loop></audio>
+  <audio id="sndCorrect" src="audio/correct.mp3"></audio>
+  <audio id="sndWrong" src="audio/wrong.mp3"></audio>
+
+  <footer>
+    "Almost New" Kevin MacLeod (incompetech.com) · Licensed under CC BY 4.0
+    <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">http://creativecommons.org/licenses/by/4.0/</a>
+  </footer>
+</div>
+
+<script>
+/* ========== 資料（完整保留） ========== */
+const BASE_NAMES = [
+  // 遊戲2（10）
+  "低音譜號下加一間fa","低音譜號下加一線mi","低音譜號第一間la","低音譜號第一線sol","低音譜號第二線si",
+  "高音譜號上加一間sol","高音譜號上加一線la","高音譜號第五線fa","高音譜號第四間mi","高音譜號第四線re",
+  // 新增（16）
+  "低音譜號上加一間si","低音譜號上加一線do","低音譜號第二間do","低音譜號第三間mi","低音譜號第三線re",
+  "低音譜號第四間sol","低音譜號第四線fa","低音譜號第五線la","高音譜號下加一線do","高音譜號下一間re",
+  "高音譜號第一線mi","高音譜號第一間fa","高音譜號第二線sol","高音譜號第二間la","高音譜號第三線si","高音譜號第三間do"
+];
+const PATHS = { staff:"assets/五線譜/", solfege:"assets/唱名/", pitch:"assets/音名/" };
+const MAX_HINTS = 3; const LB_KEY="note_hunt_leaderboard_v1";
+
+/* DOM */
+const $ = s=>document.querySelector(s);
+const gridEl=$("#grid"), taskEl=$("#task"), scoreEl=$("#score"), doneEl=$("#done"), clockEl=$("#clock");
+const overlay=$("#overlay"), overlayShowHint=$("#overlayShowHint"), overlayLater=$("#overlayLater");
+const wino=$("#wino"), finalTimeEl=$("#finalTime"), finalScoreEl=$("#finalScore");
+const leaderModal=$("#leaderModal"), leaderBody=(document.querySelector("#leaderTable")||{}).querySelector ? document.querySelector("#leaderTable").querySelector("tbody") : null;
+const volBgm=$("#volBgm"), volSfx=$("#volSfx"), bgm=$("#bgm"), sndCorrect=$("#sndCorrect"), sndWrong=$("#sndWrong");
+
+/* 狀態 */
+const state={mode:"solfege",grid:[],task:[],selected:[],score:0,done:0,hints:MAX_HINTS,elapsed:0,timer:null,paused:false,lastAction:Date.now(),overlayTriggered:false,won:false,started:false};
+
+/* 工具 */
+function inBounds(r,c){return r>=0&&r<7&&c>=0&&c<7;}
+function formatHMS(s){const hh=String(Math.floor(s/3600)).padStart(2,"0"), mm=String(Math.floor((s%3600)/60)).padStart(2,"0"), ss=String(s%60).padStart(2,"0"); return `${hh}:${mm}:${ss}`;}
+function extractSolfege(base){const xs=["do","re","mi","fa","sol","la","si"]; for(const x of xs){if(base.endsWith(x))return x;} for(const x of xs){if(base.includes(x))return x;} return null;}
+const SOL2PITCH={do:"c",re:"d",mi:"e",fa:"f",sol:"g",la:"a",si:"b"};
+
+/* 物件 */
+function buildObj(base,kind){const sol=extractSolfege(base), pit=SOL2PITCH[sol]; const suffix=kind==="staff"?"五線譜":(kind==="solfege"?"唱名":"音名"); return {base,noteSol:sol,notePitch:pit,kind,src:PATHS[kind]+base+suffix+".png"}}
+
+/* 產盤 */
+function makeGrid(){
+  const kind=state.mode; const bases=[...BASE_NAMES]; const tmp=[]; while(tmp.length<49) tmp.push(...bases); tmp.length=49;
+  for(let i=tmp.length-1;i>0;i--){const j=(Math.random()*(i+1))|0; [tmp[i],tmp[j]]=[tmp[j],tmp[i]];}
+  state.grid=tmp.map(b=>buildObj(b,kind));
+}
+
+/* 畫盤 */
+function drawGrid(){
+  gridEl.innerHTML="";
+  state.grid.forEach((obj,idx)=>{
+    const d=document.createElement("div"); d.className="cell"; d.dataset.idx=idx;
+    const img=document.createElement("img"); img.src=obj.src; img.alt=obj.base;
+    d.appendChild(img);
+    d.addEventListener("click",onCellClick,{passive:true});
+    gridEl.appendChild(d);
+  });
+  resetSelection();
+}
+
+/* 直線集合 */
+const DIRS=[[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
+function scanSequences(){
+  const res=[];
+  for(let r=0;r<7;r++)for(let c=0;c<7;c++)for(const[dr,dc] of DIRS){
+    const cells=[]; let ok=true;
+    for(let k=0;k<4;k++){const nr=r+dr*k,nc=c+dc*k;if(!inBounds(nr,nc)){ok=false;break;} cells.push([nr,nc]);}
+    if(ok) res.push(cells);
+  }
+  return res;
+}
+
+/* 任務（保證可解） */
+function dealTask(){
+  clearHintOverlay();
+  const seqs=scanSequences(); const chosen=seqs[(Math.random()*seqs.length)|0];
+  const want=chosen.map(([r,c])=>state.grid[r*7+c]);
+  state.task=want.map(o=>buildObj(o.base,"staff"));
+  taskEl.innerHTML=""; state.task.forEach(t=>{const img=document.createElement("img"); img.src=t.src; img.alt=t.base; taskEl.appendChild(img);});
+  state.lastAction=Date.now();
+}
+
+/* 點格邏輯 */
+function resetSelection(){ state.selected=[]; document.querySelectorAll(".cell").forEach(el=>el.classList.remove("selected","wrong","hinted")); }
+function onCellClick(e){
+  if(!state.started||state.paused) return;
+  const idx=+e.currentTarget.dataset.idx; if(state.selected.includes(idx)) return;
+  state.selected.push(idx); e.currentTarget.classList.add("selected"); state.lastAction=Date.now();
+  if(state.selected.length===4) validateSelection();
+}
+function isStraight(sel){
+  const pts=sel.map(i=>[Math.floor(i/7),i%7]); const [a,b,c,d]=pts, v=(p,q)=>[q[0]-p[0],q[1]-p[1]];
+  const v1=v(a,b),v2=v(b,c),v3=v(c,d); const same=(x,y)=>x[0]==y[0]&&x[1]==y[1];
+  const valid=([dr,dc])=>[-1,0,1].includes(dr)&&[-1,0,1].includes(dc)&&(dr!==0||dc!==0);
+  return valid(v1)&&same(v1,v2)&&same(v2,v3);
+}
+function validateSelection(){
+  const sel=state.selected, straight=isStraight(sel);
+  const cells=sel.map(i=>state.grid[i]); const want=state.task;
+  const values=cells.map(o=>state.mode==="solfege"?o.noteSol:o.notePitch);
+  const target=want.map(o=>state.mode==="solfege"?o.noteSol:o.notePitch);
+  const match=straight && values.every((v,i)=>v===target[i]);
+  if(match){
+    mark(sel,"found"); state.score+=10; state.done+=1; scoreEl.textContent=state.score; doneEl.textContent=state.done;
+    try{sndCorrect.currentTime=0;sndCorrect.play();}catch{}
+    resetSelection(); if(state.done>=5){ endGame(); } else { dealTask(); }
+  }else{
+    mark(sel,"wrong"); try{sndWrong.currentTime=0;sndWrong.play();}catch{}
+    setTimeout(()=>{ mark(sel,null,true); resetSelection(); },600);
+  }
+}
+function mark(idxs,cls,clearOnly=false){
+  idxs.forEach(i=>{const el=gridEl.children[i]; el.classList.remove("selected","found","wrong","hinted"); if(!clearOnly&&cls) el.classList.add(cls);});
+}
+
+/* 強力提示（改為只加「hinted」框框，不畫線） */
+function findCurrentTargetSeq(){
+  const target=state.task.map(o=>state.mode==="solfege"?o.noteSol:o.notePitch).join(",");
+  const seqs=scanSequences();
+  for(const s of seqs){
+    const vals=s.map(([r,c])=>state.grid[r*7+c]).map(o=>state.mode==="solfege"?o.noteSol:o.notePitch).join(",");
+    if(vals===target) return s;
+  } return null;
+}
+function clearHintOverlay(){
+  document.querySelectorAll(".cell.hinted").forEach(el=>el.classList.remove("hinted"));
+}
+function useHint(){
+  if(state.hints<=0){alert("提示次數已用完");return;}
+  const seq=findCurrentTargetSeq(); if(!seq){dealTask();return;}
+  const idxs=seq.map(([r,c])=>r*7+c);
+  idxs.forEach(i=>gridEl.children[i].classList.add("hinted"));  // ✅ 四格閃爍框框
+  state.hints--;
+  document.querySelector("#hintsLeft").textContent=state.hints;
+  state.lastAction=Date.now();
+  if(state.hints<=0) $("#hintBtn").disabled=true;
+}
+
+/* 一次性提示 Overlay */
+function openOverlay(){ overlay.style.display="flex"; }
+function closeOverlay(){ overlay.style.display="none"; }
+
+/* 計時 */
+function startTimer(){
+  clearInterval(state.timer); clockEl.textContent="00:00:00"; state.elapsed=0;
+  state.timer=setInterval(()=>{
+    if(state.paused||state.won||!state.started) return;
+    state.elapsed++; clockEl.textContent=formatHMS(state.elapsed);
+    if(Date.now()-state.lastAction>=30000 && !state.overlayTriggered){ openOverlay(); state.overlayTriggered=true; }
+  },1000);
+}
+
+/* 結束 */
+function endGame(){
+  clearInterval(state.timer); state.won=true; state.started=false;
+  finalTimeEl.textContent=formatHMS(state.elapsed); finalScoreEl.textContent=state.score; wino.style.display="flex";
+}
+
+/* 排行榜 */
+function loadLB(){ try{return JSON.parse(localStorage.getItem(LB_KEY)||"[]");}catch(e){return[];} }
+function saveLB(arr){ try{localStorage.setItem(LB_KEY,JSON.stringify(arr));}catch(e){} }
+function addScore(entry){ const arr=loadLB(); arr.push(entry); arr.sort((a,b)=>b.score-a.score || a.timeSeconds-b.timeSeconds); if(arr.length>50) arr.length=50; saveLB(arr); }
+function renderLB(){
+  const arr=loadLB(); if(!leaderBody) return;
+  leaderBody.innerHTML=arr.length?"":'<tr><td colspan="5">尚無紀錄</td></tr>';
+  arr.slice(0,20).forEach((e,i)=>{const tr=document.createElement("tr"); tr.innerHTML=`<td>${i+1}</td><td>${escapeHtml(e.name)}</td><td>${e.score}</td><td>${formatHMS(e.timeSeconds)}</td><td>${new Date(e.dateISO).toLocaleDateString()}</td>`; leaderBody.appendChild(tr);});
+}
+function escapeHtml(s){return (s||"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));}
+
+/* —— 統一版面：整體縮放邏輯 —— */
+function applyUnifiedScale(){
+  const app = document.getElementById('app');
+  // 先清除 transform 以取得內容實際高度
+  app.style.transform = 'none';
+  app.style.left = '0px';
+  app.style.top  = '0px';
+
+  const designW = 1120;
+  const appRect = app.getBoundingClientRect();
+  const appH = appRect.height; // 內容實高
+
+  const vw = window.innerWidth || document.documentElement.clientWidth;
+  const vh = window.innerHeight || document.documentElement.clientHeight;
+
+  const scale = Math.min(vw / designW, vh / appH);
+  app.style.transform = `scale(${scale})`;
+  // 置中
+  const left = (vw - designW * scale) / 2;
+  const top  = (vh - appH   * scale) / 2;
+  app.style.left = left + 'px';
+  app.style.top  = top  + 'px';
+}
+
+/* 開新局 */
+function startNewGame(){
+  // 模式
+  const m=document.querySelector('input[name="introMode"]:checked')?.value;
+  state.mode = m || (document.querySelector("#mode-sol")?.checked ? "solfege" : "pitch") || "solfege";
+  if(state.mode==="solfege") $("#mode-sol").checked=true; else $("#mode-pit").checked=true;
+
+  // 重置
+  state.started=true; state.paused=false; state.score=0; state.done=0; state.hints=MAX_HINTS; state.elapsed=0; state.selected=[]; state.overlayTriggered=false; state.won=false;
+  scoreEl.textContent="0"; doneEl.textContent="0"; document.querySelector("#hintsLeft").textContent=MAX_HINTS; clockEl.textContent="00:00:00";
+
+  makeGrid(); drawGrid(); dealTask(); applyUnifiedScale(); startTimer();
+}
+
+/* 音量/音效 */
+function applyVolumes(){ bgm.volume=parseFloat(volBgm.value); sndCorrect.volume=sndWrong.volume=parseFloat(volSfx.value); }
+applyVolumes(); volBgm.addEventListener("input",applyVolumes); volSfx.addEventListener("input",applyVolumes);
+$("#bgmToggle").addEventListener("click",async()=>{ if(bgm.paused){ try{await bgm.play(); $("#bgmToggle").textContent="暫停BGM";}catch{} } else { bgm.pause(); $("#bgmToggle").textContent="播放BGM"; }});
+$("#testSfx").addEventListener("click",()=>{ try{sndCorrect.currentTime=0; sndCorrect.play();}catch{} });
+
+/* 事件 */
+$("#hintBtn").addEventListener("click",()=>{ if(!state.started) return; useHint(); });
+$("#clearSelBtn").addEventListener("click",resetSelection);
+$("#rerollBtn").addEventListener("click",()=>{ if(!state.started) return; dealTask(); });
+$("#shuffleBtn").addEventListener("click",()=>{ if(!state.started) return; makeGrid(); drawGrid(); dealTask(); applyUnifiedScale(); });
+$("#pauseBtn").addEventListener("click",()=>{ state.paused=!state.paused; $("#pauseBtn").textContent=state.paused?"繼續":"暫停"; if(!state.paused) state.lastAction=Date.now(); });
+$("#leaderBtn").addEventListener("click",()=>{ renderLB(); leaderModal.style.display="flex"; });
+$("#leaderClose").addEventListener("click",()=> leaderModal.style.display="none");
+$("#clearLeaderboard").addEventListener("click",()=>{ if(confirm("確定清除排行榜？")){localStorage.removeItem(LB_KEY); renderLB();} });
+
+// 新局按鈕：仍先看到解說；按「開始遊戲」直接開局
+$("#newGameBtn").addEventListener("click",()=>{ document.querySelector("#introModal").style.display="flex"; });
+
+// 30 秒提示 Overlay
+overlayShowHint?.addEventListener("click",()=>{ closeOverlay(); useHint(); });
+overlayLater?.addEventListener("click",closeOverlay);
+
+// 過關視窗
+$("#saveScoreBtn").addEventListener("click",()=>{ const name=($("#playerName").value||"玩家").slice(0,20); addScore({name,score:state.score,timeSeconds:state.elapsed,dateISO:new Date().toISOString()}); renderLB(); alert("已儲存到排行榜！"); });
+$("#playAgain").addEventListener("click",()=>{ wino.style.display="none"; document.querySelector("#introModal").style.display="flex"; });
+$("#closeWin").addEventListener("click",()=>{ wino.style.display="none"; });
+
+/* 初始化 */
+document.addEventListener("DOMContentLoaded",()=>{
+  document.querySelector("#introModal").style.display="flex";
+  $("#introStart").addEventListener("click",()=>{ document.querySelector("#introModal").style.display="none"; startNewGame(); });
+  // 初始也做一次縮放（未開局時也能看見一致版面）
+  applyUnifiedScale();
+  window.addEventListener("resize",applyUnifiedScale,{passive:true});
+});
+</script>
+</body>
+</html>
