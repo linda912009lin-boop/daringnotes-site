@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>音符數獨</title>
+<style>
+:root{
+  --board-size: clamp(320px, 92vmin, 720px);
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,"PingFang TC","Noto Sans TC";background:#fff;color:#111}
+header{text-align:center;padding:16px 0}
+h1{margin:0;font-size:28px;letter-spacing:4px}
+
+/* 版面：棋盤 + 側欄（響應式） */
+main{
+  display:grid;grid-template-columns:1fr minmax(260px,320px);
+  gap:24px;align-items:start;width:min(1160px,96vw);margin:0 auto 24px
+}
+@media(max-width:880px){
+  main{grid-template-columns:1fr}
+  aside{order:2;position:static}
+}
+
+/* 棋盤 */
+#board{
+  width:var(--board-size);aspect-ratio:1/1;margin-inline:auto;
+  display:grid;grid-template-columns:repeat(9,1fr);grid-template-rows:repeat(9,1fr);
+  border:4px solid #111;background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.08)
+}
+.cell{border:1.5px solid #1112;position:relative;overflow:hidden;background:#fff}
+.cell[data-r="2"],.cell[data-r="5"]{border-bottom:3.5px solid #111}
+.cell[data-c="2"],.cell[data-c="5"]{border-right:3.5px solid #111}
+.cell.given{background:#f6f6fa}
+.cell img{
+  position:absolute;inset:8% 8%;
+  max-width:84%;max-height:84%;margin:auto;object-fit:contain;pointer-events:none
+}
+
+/* 側欄 */
+aside{position:sticky;top:10px}
+.card{background:#f7f7f9;border:1px solid #e6e6ef;border-radius:14px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.row{display:flex;align-items:center;gap:8px;margin:10px 0}
+.row label{width:84px;color:#333;font-size:14px}
+.row input[type=range]{flex:1}
+select{width:100%;padding:8px 10px;border:1px solid #e6e6ef;border-radius:10px;background:#fff}
+.btn{border:0;border-radius:10px;padding:8px 12px;background:#111;color:#fff;cursor:pointer;font-weight:600}
+.btn.secondary{background:#e5e7eb;color:#111}
+.btn.green{background:#16a34a}
+
+/* 樹枝圖（圖片卡牌） */
+#palette{
+  position:fixed;z-index:30;display:none;background:#fff;border:1px solid #e6e6ef;
+  border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-width:min(92vw,540px)
+}
+#palette .scroll{overflow:auto;max-height:min(60svh,520px)}
+#palette .grid{display:grid;grid-template-columns:repeat(3,minmax(64px,1fr));gap:10px;padding:12px}
+#palette .opt{border:1px solid #e6e6ef;border-radius:12px;aspect-ratio:1.4/1;display:flex;align-items:center;justify-content:center;background:#fff;cursor:pointer}
+#palette .opt img{max-height:110px;width:auto;height:auto}
+@media(max-width:480px){
+  #palette{max-width:min(94vw,460px)}
+  #palette .opt{aspect-ratio:1.5/1}
+  #palette .opt img{max-height:92px}
+}
+
+/* Modal（解說、排行） */
+.modal{
+  position:fixed;inset:0;background:rgba(0,0,0,.35);
+  display:none;z-index:40;min-height:100svh;align-items:center;justify-content:center
+}
+.modal .panel{
+  width:min(560px,96vw);max-height:min(82svh,640px);overflow:auto;
+  background:#fff;border-radius:14px;box-shadow:0 8px 32px rgba(0,0,0,.24);padding:16px;margin:24px auto
+}
+.modal .panel h3{margin:4px 0 8px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{padding:8px;border-bottom:1px solid #eee;text-align:left}
+small.muted{color:#666}
+</style>
+</head>
+<body>
+<header><h1>音符數獨</h1></header>
+
+<main>
+  <section style="display:flex;justify-content:center;">
+    <div id="board"></div>
+  </section>
+
+  <aside>
+    <div class="card">
+      <div class="row">
+        <label>難度</label>
+        <input id="difficulty" type="range" min="0" max="60" value="32"/>
+        <span id="diffLabel">32格</span>
+      </div>
+
+      <div class="row">
+        <label>音域</label>
+        <select id="mode">
+          <option value="treble">高音區域</option>
+          <option value="bass">低音區域</option>
+        </select>
+      </div>
+
+      <div class="row" style="gap:8px">
+        <button id="btnNew" class="btn secondary">新題目</button>
+        <button id="btnRestart" class="btn secondary">重新開始</button>
+      </div>
+
+      <div class="row">
+        <button id="btnCheck" class="btn green" style="width:100%">已完成填寫</button>
+      </div>
+
+      <div class="row" style="gap:8px;justify-content:space-between">
+        <button id="btnIntro" class="btn secondary" style="flex:1">遊戲解說</button>
+        <button id="btnRanks" class="btn secondary" style="flex:1">排行榜</button>
+      </div>
+
+      <div class="row" style="font-size:12px;color:#555;display:block">
+        提示：點空白格會跳出 3×3 樹枝圖選單；若靠邊會自動加左右滑動條。切換音域會即時把盤面卡牌換成對應圖。
+      </div>
+    </div>
+  </aside>
+</main>
+
+<!-- 樹枝圖選單（圖片） -->
+<div id="palette">
+  <div class="scroll"><div class="grid" id="paletteGrid"></div></div>
+  <div style="padding:8px;text-align:right">
+    <button id="palClear" class="btn secondary">清除</button>
+    <button id="palClose" class="btn">關閉</button>
+  </div>
+</div>
+
+<!-- 遊戲解說 -->
+<div id="introModal" class="modal">
+  <div class="panel">
+    <h3>遊戲說明</h3>
+    <p>這是音符數獨遊戲！讓我們來練習高音譜記號及低音譜記號的 Do Re Mi Fa Sol La Si Do 吧！</p>
+    <p><strong>提醒：</strong>空白格都填寫後，建議多檢查答案是否正確，再按下「已完成填寫」，就可以知道遊戲結果囉！</p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+      <button id="introClose" class="btn">開始遊戲</button>
+    </div>
+  </div>
+</div>
+
+<!-- 完成 + 排行榜 -->
+<div id="rankModal" class="modal">
+  <div class="panel">
+    <h3 id="rankTitle">排行榜（本機）</h3>
+    <div id="winStats" style="margin:6px 0 10px"></div>
+    <div id="saveRow" style="display:none; gap:8px; align-items:center; margin:8px 0;">
+      <label style="width:80px;">玩家名稱</label>
+      <input id="playerName" placeholder="例如：小明"/>
+      <button id="btnSaveScore" class="btn green">存到排行榜</button>
+    </div>
+    <div style="max-height:320px; overflow:auto;">
+      <table id="rankTable">
+        <thead><tr><th>#</th><th>玩家</th><th>分數</th><th>時間</th><th>模式</th><th>難度</th><th>日期</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div style="text-align:right;margin-top:10px">
+      <button id="clearRank" class="btn secondary">清除排行</button>
+      <button id="rankClose" class="btn">關閉</button>
+    </div>
+  </div>
+</div>
+
+<!-- 音效 -->
+<audio id="bgm" src="audio/bgm.mp3" loop preload="auto"></audio>
+<audio id="sfxCorrect" src="audio/correct.mp3" preload="auto"></audio>
+<audio id="sfxWrong"   src="audio/wrong.mp3"   preload="auto"></audio>
+
+<script>
+/* ========== 圖片卡牌（請確認檔案存在 assets/） ========== */
+const IMG_TREBLE = [
+  'assets/高音譜號.png',                 // 1
+  'assets/高音譜號下加一線do五線譜.png',   // 2
+  'assets/高音譜號下一間re五線譜.png',     // 3
+  'assets/高音譜號第一線mi五線譜.png',     // 4
+  'assets/高音譜號第一間fa五線譜.png',     // 5
+  'assets/高音譜號第二線sol五線譜.png',     // 6
+  'assets/高音譜號第二間la五線譜.png',     // 7
+  'assets/高音譜號第三線si五線譜.png',     // 8
+  'assets/高音譜號第三間do五線譜.png',     // 9
+];
+const IMG_BASS = [
+  'assets/低音譜號.png',                 // 1
+  'assets/低音譜號第二間do五線譜.png',     // 2
+  'assets/低音譜號第三線re五線譜.png',     // 3
+  'assets/低音譜號第三間mi五線譜.png',     // 4
+  'assets/低音譜號第四線fa五線譜.png',     // 5
+  'assets/低音譜號第四間sol五線譜.png',     // 6
+  'assets/低音譜號第五線la五線譜.png',     // 7
+  'assets/低音譜號上加一間si五線譜.png',     // 8
+  'assets/低音譜號上加一線do五線譜.png',     // 9
+];
+let CURRENT_IMAGES = IMG_TREBLE;
+
+/* ========== DOM ========== */
+const boardEl = document.getElementById('board');
+const diffRange = document.getElementById('difficulty'), diffLabel = document.getElementById('diffLabel');
+const btnNew = document.getElementById('btnNew'), btnRestart = document.getElementById('btnRestart'), btnCheck = document.getElementById('btnCheck');
+const modeSel = document.getElementById('mode');
+
+const pal = document.getElementById('palette'), palGrid = document.getElementById('paletteGrid'), palClose = document.getElementById('palClose'), palClear = document.getElementById('palClear');
+
+const introModal = document.getElementById('introModal'), introClose = document.getElementById('introClose');
+const rankModal = document.getElementById('rankModal'), rankClose = document.getElementById('rankClose');
+const btnIntro = document.getElementById('btnIntro'), btnRanks = document.getElementById('btnRanks');
+const rankTable = document.querySelector('#rankTable tbody'), rankTitle = document.getElementById('rankTitle');
+const winStats = document.getElementById('winStats'), playerName = document.getElementById('playerName'), btnSaveScore = document.getElementById('btnSaveScore'), clearRank = document.getElementById('clearRank'), saveRow = document.getElementById('saveRow');
+
+/* 音效 */
+const bgm = document.getElementById('bgm');
+const sfxCorrect = document.getElementById('sfxCorrect');
+const sfxWrong   = document.getElementById('sfxWrong');
+
+/* ========== 狀態 ========== */
+let solution=[], puzzle=[], current=[], givenMask=[];
+let timer=0, timerId=null, mistakes=0;
+let palTarget=null;
+
+/* ========== 工具 ========== */
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a; }
+function deepCopy(m){ return m.map(r=>r.slice()); }
+function fmtTime(sec){ const m=Math.floor(sec/60).toString().padStart(2,'0'); const s=(sec%60).toString().padStart(2,'0'); return `${m}:${s}`; }
+
+/* ========== 生成解 / 分散挖空 ========== */
+function generateSolution(){
+  const base=3, side=9;
+  const pattern=(r,c)=>(base*(r%base)+Math.floor(r/base)+c)%side;
+  const rows=[].concat(...shuffle([0,1,2]).map(g=>shuffle([0,1,2]).map(r=>g*base+r)));
+  const cols=[].concat(...shuffle([0,1,2]).map(g=>shuffle([0,1,2]).map(c=>g*base+c)));
+  const nums=shuffle([1,2,3,4,5,6,7,8,9]);
+  return rows.map(r=>cols.map(c=>nums[pattern(r,c)]));
+}
+function makePuzzleFromSolution(sol, holes){
+  const p = deepCopy(sol);
+  const blocks=[];
+  for(let br=0;br<3;br++)for(let bc=0;bc<3;bc++){
+    const coords=[]; for(let r=0;r<3;r++)for(let c=0;c<3;c++) coords.push([br*3+r, bc*3+c]);
+    blocks.push(coords);
+  }
+  const base=Math.floor(holes/9); let remain=holes%9;
+  const order=shuffle([...Array(9)].map((_,i)=>i));
+  for(let bi=0;bi<9;bi++){
+    const coords=shuffle(blocks[bi].slice());
+    const extra=(remain>0&&order[bi]<remain)?1:0;
+    const need=Math.min(base+extra, coords.length);
+    for(let k=0;k<need;k++){ const [r,c]=coords[k]; p[r][c]=0; }
+  }
+  return p;
+}
+
+/* ========== 渲染棋盤（用圖片） ========== */
+function renderBoard(){
+  boardEl.innerHTML='';
+  for(let r=0;r<9;r++){
+    for(let c=0;c<9;c++){
+      const div=document.createElement('div');
+      div.className='cell';
+      div.dataset.row=r; div.dataset.col=c;
+      if(r%3===2) div.dataset.r="2";
+      if(c%3===2) div.dataset.c="2";
+      if(givenMask[r][c]) div.classList.add('given');
+
+      const v=current[r][c];
+      if(v>0){
+        const img=document.createElement('img');
+        img.src = CURRENT_IMAGES[v-1];
+        img.alt = `值 ${v}`;
+        img.dataset.val = v;
+        div.appendChild(img);
+      }
+      div.addEventListener('click', ()=>onCellClick(div));
+      boardEl.appendChild(div);
+    }
+  }
+}
+function updateAllImages(){
+  boardEl.querySelectorAll('.cell img').forEach(img=>{
+    const v=+img.dataset.val; img.src = CURRENT_IMAGES[v-1];
+  });
+}
+
+/* ========== 樹枝圖選單（即時音效版） ========== */
+function onCellClick(cell){
+  const r=+cell.dataset.row,c=+cell.dataset.col;
+  if(givenMask[r][c]) return;
+  palTarget=cell; buildPalette(); positionPaletteAtCell(pal, cell);
+}
+function buildPalette(){
+  palGrid.innerHTML='';
+  for(let i=0;i<9;i++){
+    const d=document.createElement('div'); d.className='opt';
+    const img=document.createElement('img'); img.src=CURRENT_IMAGES[i]; img.alt=`選項 ${i+1}`;
+    d.appendChild(img); d.addEventListener('click',()=>pickValue(i+1));
+    palGrid.appendChild(d);
+  }
+}
+// ✅ 即時音效：選了就比對 solution 播正/誤音效（仍允許錯誤留在盤面）
+function pickValue(v){
+  if(!palTarget) return;
+  const r=+palTarget.dataset.row, c=+palTarget.dataset.col;
+
+  current[r][c]=v;
+  palTarget.innerHTML='';
+  const img=document.createElement('img'); img.src=CURRENT_IMAGES[v-1]; img.alt=`值 ${v}`; img.dataset.val=v;
+  palTarget.appendChild(img);
+
+  try{
+    const isCorrect = (solution && solution[r] && solution[r][c] === v);
+    const sfx = isCorrect ? sfxCorrect : sfxWrong;
+    sfx.pause(); sfx.currentTime=0; sfx.play().catch(()=>{});
+  }catch(e){/* ignore */}
+  pal.style.display='none';
+}
+palClose.onclick=()=> pal.style.display='none';
+palClear.onclick=()=>{
+  if(!palTarget) return;
+  const r=+palTarget.dataset.row,c=+palTarget.dataset.col;
+  current[r][c]=0; palTarget.innerHTML=''; pal.style.display='none';
+};
+
+/* 定位（不超出版面） */
+function positionPaletteAtCell(paletteEl,cellEl){
+  const vr = window.visualViewport || { width: window.innerWidth, height: window.innerHeight, pageTop: window.scrollY, pageLeft: window.scrollX };
+  const crect = cellEl.getBoundingClientRect();
+  paletteEl.style.display='block';
+  const prect = paletteEl.getBoundingClientRect();
+  let left = vr.pageLeft + crect.left + crect.width/2 - prect.width/2;
+  left = Math.max(vr.pageLeft+12, Math.min(left, vr.pageLeft + vr.width - prect.width - 12));
+  let top = vr.pageTop + crect.top - prect.height - 6;
+  if(top < vr.pageTop+12){
+    top = vr.pageTop + crect.bottom + 12;
+    if(top > vr.pageTop + vr.height - prect.height - 12){
+      top = vr.pageTop + vr.height - prect.height - 12;
+    }
+  }
+  paletteEl.style.left = `${left}px`;
+  paletteEl.style.top  = `${top}px`;
+}
+window.addEventListener('resize', ()=>{ if(pal.style.display==='block'&&palTarget) positionPaletteAtCell(pal,palTarget); });
+if(window.visualViewport){
+  visualViewport.addEventListener('resize', ()=>{ if(pal.style.display==='block'&&palTarget) positionPaletteAtCell(pal,palTarget); });
+  visualViewport.addEventListener('scroll', ()=>{ if(pal.style.display==='block'&&palTarget) positionPaletteAtCell(pal,palTarget); });
+}
+
+/* ========== 計時、分數、排行 ========== */
+function startTimer(){ if(timerId) clearInterval(timerId); timerId=setInterval(()=>timer++,1000); }
+function stopTimer(){ if(timerId){ clearInterval(timerId); timerId=null; } }
+function score(){
+  // 分數：正確率 + 難度加成 − 時間與錯誤懲罰（mistakes 目前保留參數）
+  let total=0, correct=0;
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++) if(!givenMask[r][c]) total++;
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++) if(!givenMask[r][c] && current[r][c]===solution[r][c]) correct++;
+  const acc = total? (correct/total) : 1;
+  const diff = +diffRange.value;
+  const base = Math.round(1000*acc);
+  const bonus= diff*10;
+  const timePenalty = Math.floor(timer/2);
+  const mistakePenalty = mistakes*30;
+  return Math.max(0, base + bonus - timePenalty - mistakePenalty);
+}
+function openRanks({showSave=false, statsText=""}={}){
+  rankTitle.textContent = "排行榜（本機）";
+  winStats.textContent = statsText;
+  saveRow.style.display = showSave ? 'flex' : 'none';
+  refreshRanks();
+  rankModal.style.display='flex';
+}
+function refreshRanks(){
+  const list=JSON.parse(localStorage.getItem('noteSudokuRanks')||'[]');
+  rankTable.innerHTML='';
+  list.slice(0,20).forEach((e,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${i+1}</td><td>${e.name}</td><td>${e.score}</td><td>${e.time}</td><td>${e.mode}</td><td>${e.diff}</td><td>${e.date}</td>`;
+    rankTable.appendChild(tr);
+  });
+}
+function saveRank(entry){
+  const list=JSON.parse(localStorage.getItem('noteSudokuRanks')||'[]'); list.push(entry);
+  list.sort((a,b)=> b.score - a.score || a.time.localeCompare(b.time));
+  localStorage.setItem('noteSudokuRanks', JSON.stringify(list.slice(0,50)));
+}
+
+/* ========== 控制 ========== */
+function startNew(){
+  stopTimer(); timer=0; mistakes=0;
+  solution = generateSolution();
+  puzzle   = makePuzzleFromSolution(solution, +diffRange.value);
+  current  = deepCopy(puzzle);
+  givenMask= puzzle.map(row=>row.map(v=>v!==0));
+  renderBoard();
+  startTimer();
+}
+btnNew.onclick = ()=>{ openIntro(true); };
+btnRestart.onclick = ()=>{ if(!puzzle.length) return; stopTimer(); timer=0; mistakes=0; current=deepCopy(puzzle); renderBoard(); startTimer(); };
+btnCheck.onclick = ()=>{
+  for(let r=0;r<9;r++)for(let c=0;c<9;c++){
+    if(current[r][c]===0){ alert('還有空格未填寫喔！'); return; }
+  }
+  let wrong=0; for(let r=0;r<9;r++)for(let c=0;c<9;c++){ if(current[r][c]!==solution[r][c]) wrong++; }
+  stopTimer();
+  const sc = score();
+  const timeStr = fmtTime(timer);
+  const modeStr = (modeSel.value==='treble'?'高音區域':'低音區域');
+  const stats = wrong===0
+    ? `🎉 全對！分數 ${sc}，時間 ${timeStr}，模式 ${modeStr}，難度 ${diffRange.value}`
+    : `有 ${wrong} 格不正確；分數 ${sc}，時間 ${timeStr}，模式 ${modeStr}，難度 ${diffRange.value}`;
+
+  if(wrong===0){ sfxCorrect.pause(); sfxCorrect.currentTime=0; sfxCorrect.play().catch(()=>{}); }
+  else{ sfxWrong.pause(); sfxWrong.currentTime=0; sfxWrong.play().catch(()=>{}); }
+
+  openRanks({showSave:true, statsText:stats});
+};
+diffRange.oninput = ()=> diffLabel.textContent = `${diffRange.value}格`;
+modeSel.onchange = ()=>{ CURRENT_IMAGES = (modeSel.value==='bass') ? IMG_BASS : IMG_TREBLE; updateAllImages(); if(pal.style.display==='block') buildPalette(); };
+
+/* Intro：新題目前置說明，並於按「開始遊戲」後啟 BGM */
+function openIntro(fromNew=false){
+  introModal.style.display='flex';
+  introModal.dataset.fromNew = fromNew ? '1':'0';
+}
+introClose.onclick=()=>{
+  introModal.style.display='none';
+  // 互動授權後播放 BGM
+  bgm.volume = 0.5;
+  bgm.play().catch(()=>{});
+  if(introModal.dataset.fromNew==='1'){ startNew(); introModal.dataset.fromNew='0'; }
+};
+btnIntro.onclick = ()=> openIntro(false);
+
+/* 排行 */
+btnRanks.onclick = ()=> openRanks({showSave:false});
+rankClose.onclick = ()=>{ rankModal.style.display='none'; };
+btnSaveScore.onclick = ()=>{
+  const name = (playerName.value || localStorage.getItem('noteSudokuName') || '玩家').slice(0,18);
+  localStorage.setItem('noteSudokuName', name);
+  const entry = {
+    name,
+    score: score(),
+    time: fmtTime(timer),
+    mode: (modeSel.value==='treble'?'高音區域':'低音區域'),
+    diff: +diffRange.value,
+    date: new Date().toISOString().slice(0,10)
+  };
+  saveRank(entry);
+  refreshRanks();
+};
+clearRank.onclick = ()=>{ localStorage.removeItem('noteSudokuRanks'); refreshRanks(); };
+
+/* 初始：先顯示解說，按開始後才出題與播放 BGM */
+(function init(){
+  diffLabel.textContent = `${diffRange.value}格`;
+  openIntro(true);
+})();
+</script>
+
+  <footer id="music-credits" aria-label="music attribution">
+    <small>"Danse Morialta" Kevin MacLeod (incompetech.com)<br>
+    Licensed under Creative Commons: By Attribution 4.0 License<br>
+    <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">http://creativecommons.org/licenses/by/4.0/</a>
+    </small>
+  </footer>
+  <style>
+    #music-credits{
+      text-align:center;
+      padding:12px 8px;
+      font-size:12px;
+      color:#666;
+      line-height:1.5;
+    }
+    #music-credits a{ color:inherit; text-decoration:underline; }
+  </style>
+
+</body>
+</html>
