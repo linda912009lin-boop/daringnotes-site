@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>音符心臟病</title>
+  <style>
+    :root{ --line:#e5e7eb; --ink:#0f172a; --ok:#16a34a; --blue:#0ea5e9; }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:#fff;color:var(--ink);font-family:system-ui,"Noto Sans TC","PingFang TC",Arial;overflow:hidden}
+    header{padding:10px 12px 0;text-align:center}
+    h1{margin:8px 0 6px;font-size:22px}
+    main{padding:8px 12px 12px;height:calc(100svh - 48px);}
+    .panel{max-width:960px;margin:0 auto;height:100%;border:1px solid var(--line);border-radius:16px;padding:12px;display:flex;flex-direction:column;gap:10px}
+    .toolbar{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center}
+    .stat{border:1px solid var(--line);background:#f3f4f6;border-radius:12px;padding:6px 10px;font-weight:800}
+    .slider{display:flex;gap:8px;align-items:center}
+    input[type=range]{width:200px}
+    button{border:1px solid var(--line);background:#f8fafc;padding:10px 14px;border-radius:12px;font-weight:700;cursor:pointer}
+    .primary{background:var(--blue);color:#fff;border-color:#0284c7}
+    .stage{flex:1;display:flex;flex-direction:column;align-items:center;gap:8px;border:1px solid var(--line);border-radius:16px;padding:10px;min-height:0}
+    .zone{
+      width:min(88vw, 520px);
+      aspect-ratio: 1 / 1;
+      border:1px solid var(--line); border-radius:14px;
+      display:flex; align-items:center; justify-content:center;
+      overflow:hidden; background:#fff
+    }
+    #cardImage{ width:92%; height:92%; object-fit:contain; display:block }
+    .hitbar{display:flex; justify-content:center}
+    #hitBtn{width:360px; max-width:100%; padding:14px; border:0; border-radius:14px; background:var(--ok); color:#fff; font-weight:900; touch-action:manipulation}
+    .msg{min-height:24px; font-weight:800; color:#065f46}
+
+    /* Overlays */
+    .overlay{position:fixed; inset:0; background:rgba(15,23,42,.55); display:none; align-items:center; justify-content:center; padding:16px; z-index:1000}
+    .sheet{max-width:880px;width:100%;background:#fff;border-radius:16px;border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.2);overflow:hidden}
+    .sheet header{padding:14px 16px;border-bottom:1px solid var(--line)}
+    .sheet .content{padding:16px}
+    .grid2{display:grid;grid-template-columns:1fr;gap:12px}
+    @media (min-width:760px){ .grid2{grid-template-columns:1fr 1fr} }
+    .card{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fafafa}
+    .big{padding:14px 16px;font-size:16px;border-radius:12px}
+
+    /* Mobile tweaks */
+    @media (max-width:640px){
+      .toolbar{gap:6px}
+      button{padding:10px 12px}
+      input[type=range]{width:150px}
+      .stat{padding:6px 8px}
+      #hitBtn{padding:16px}
+    }
+
+    /* Leaderboard table */
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:center;font-size:14px}
+    th{background:#f8fafc}
+    .pill{border:1px solid var(--line);border-radius:999px;padding:6px 10px;background:#f9fafb;font-weight:800;margin-right:8px}
+    .grade{font-size:26px;font-weight:900}
+    .good{color:#0f766e}.mid{color:#2563eb}.low{color:#b45309}.badc{color:#b91c1c}
+
+    /* Unlock hint overlay */
+    #unlock-audio{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.6);z-index:2000}
+    #unlock-audio .box{background:#111;color:#fff;border-radius:14px;padding:18px 22px;text-align:center;max-width:90vw}
+  </style>
+</head>
+<body onload="showStartScreen()">
+<header>
+  <h1>音符心臟病</h1>
+</header>
+
+<main>
+  <div class="panel">
+    <div class="toolbar">
+      <button id="start" class="primary">▶ 開始</button>
+      <button id="pause">⏸️ 暫停/繼續</button>
+      <button id="reset">↺ 重置</button>
+      <button id="board">🏆 排行榜</button>
+      <span class="stat">正確：<span id="hitCount">0</span></span>
+      <span class="stat">錯誤：<span id="wrong">0</span></span>
+      <span class="stat">漏拍：<span id="missed">0</span></span>
+      <div class="slider">
+        <label for="speed">速度</label>
+        <input id="speed" type="range" min="400" max="2500" step="50" value="1500">
+        <span id="speedLabel">1.50s</span>
+      </div>
+      <div class="slider">
+        <label for="mismatch">困難程度</label>
+        <input id="mismatch" type="range" min="0" max="100" step="5" value="35">
+        <span id="mismatchLabel">35%</span>
+      </div>
+      <div class="slider">
+        <label for="volume">音量</label>
+        <input id="volume" type="range" min="0" max="1" step="0.01" value="1">
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="zone"><img id="cardImage" alt="卡牌"></div>
+      <div class="msg" id="msg"></div>
+      <div class="hitbar"><button id="hitBtn">拍牌（Space）</button></div>
+    </div>
+  </div>
+</main>
+
+<!-- Intro -->
+<div id="intro" class="overlay">
+  <div class="sheet">
+    <header><b>遊戲解說</b></header>
+    <div class="content">
+      <div class="grid2">
+        <div class="card">
+          <p>每張牌會顯示圖卡，並播放音高的聲響。<br>
+          （若音檔播放失敗，請將手機及平板關閉靜音或是重新打開頁面即可得到音檔修復）</p>
+          <p><b>當「聽到的音」與「牌面音高」相同時，請拍牌。</b></p>
+          <p>✔ 拍對 +1　✘ 拍錯 -1　⏱ 漏拍 -1</p>
+        </div>
+        <div class="card">
+          <div style="display:flex;gap:10px;align-items:center;margin:6px 0">
+            <label for="prefSpeed">速度</label>
+            <input id="prefSpeed" type="range" min="400" max="2500" step="50" value="1500">
+            <span id="prefSpeedLabel">1.50s</span>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;margin:6px 0">
+            <label for="prefMismatch">困難程度</label>
+            <input id="prefMismatch" type="range" min="0" max="100" step="5" value="35">
+            <span id="prefMismatchLabel">35%</span>
+          </div>
+          <button id="startNow" class="primary big">▶ 開始遊戲</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Result -->
+<div id="result" class="overlay" style="display:none;">
+  <div class="sheet">
+    <header><b>本次成績</b></header>
+    <div class="content">
+      <div class="pill">正確：<b id="rHit">0</b></div>
+      <div class="pill">錯誤：<b id="rWrong">0</b></div>
+      <div class="pill">漏拍：<b id="rMissed">0</b></div>
+      <div class="pill">正確率：<b id="rAcc">0%</b></div>
+      <p id="rGrade" class="grade good">太強了！</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">
+        <button id="retry" class="primary big">再玩一次</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Leaderboard -->
+<div id="leader" class="overlay" style="display:none;">
+  <div class="sheet">
+    <header style="display:flex;justify-content:space-between;align-items:center;">
+      <b>排行榜（本機）</b>
+      <div>
+        <button id="clearBoard">清除全部</button>
+        <button id="closeBoard" class="primary">關閉</button>
+      </div>
+    </header>
+    <div class="content">
+      <div class="card" style="overflow:auto;max-height:min(70svh,520px);">
+        <table id="boardTable">
+          <thead>
+            <tr><th>#</th><th>玩家</th><th>正確率</th><th>正/錯/漏</th><th>速度</th><th>困難</th><th>時間</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <small>提示：排行榜資料儲存在你的瀏覽器（本機）。</small>
+    </div>
+  </div>
+</div>
+
+<!-- Unlock audio hint -->
+<div id="unlock-audio">
+  <div class="box">🔊 請點一下以啟用聲音<br><small>（行動裝置需要一次點擊授權音訊）</small></div>
+</div>
+
+<script>
+/* ========= 42 張卡牌與音檔 ========= */
+const CARDS = [
+  {img:"assets/低音譜號上加三間fa五線譜.png", audio:"audio/低音譜號上加三間fa.mp3"},
+  {img:"assets/低音譜號上加三線sol五線譜.png", audio:"audio/低音譜號上加三線sol.mp3"},
+  {img:"assets/低音譜號上加兩間re五線譜.png", audio:"audio/低音譜號上加兩間re.mp3"},
+  {img:"assets/低音譜號上加兩線mi五線譜.png", audio:"audio/低音譜號上加兩線mi.mp3"},
+  {img:"assets/高音譜號下加三間sol五線譜.png", audio:"audio/高音譜號下加三間sol.mp3"},
+  {img:"assets/高音譜號下加三線fa五線譜.png", audio:"audio/高音譜號下加三線fa.mp3"},
+  {img:"assets/高音譜號下加兩間si五線譜.png", audio:"audio/高音譜號下加兩間si.mp3"},
+  {img:"assets/高音譜號下加兩線la五線譜.png", audio:"audio/高音譜號下加兩線la.mp3"},
+  {img:"assets/低音譜號上加一間si五線譜.png", audio:"audio/低音譜號上加一間si.mp3"},
+  {img:"assets/低音譜號下加一間fa五線譜.png", audio:"audio/低音譜號下加一間fa.mp3"},
+  {img:"assets/低音譜號下加三間si五線譜.png", audio:"audio/低音譜號下加三間si.mp3"},
+  {img:"assets/低音譜號下加兩間re五線譜.png", audio:"audio/低音譜號下加兩間re.mp3"},
+  {img:"assets/低音譜號第一間la五線譜.png", audio:"audio/低音譜號第一間la.mp3"},
+  {img:"assets/低音譜號第二間do五線譜.png", audio:"audio/低音譜號第二間do.mp3"},
+  {img:"assets/低音譜號第三間mi五線譜.png", audio:"audio/低音譜號第三間mi.mp3"},
+  {img:"assets/低音譜號第五線la五線譜.png", audio:"audio/低音譜號第五線la.mp3"},
+  {img:"assets/低音譜號第四線fa五線譜.png", audio:"audio/低音譜號第四線fa.mp3"},
+  {img:"assets/高音譜號上加一線la五線譜.png", audio:"audio/高音譜號上加一線la.mp3"},
+  {img:"assets/高音譜號上加三線mi五線譜.png", audio:"audio/高音譜號上加三線mi.mp3"},
+  {img:"assets/高音譜號上加兩線do五線譜.png", audio:"audio/高音譜號上加兩線do.mp3"},
+  {img:"assets/高音譜號下加一線do五線譜.png", audio:"audio/高音譜號下加一線do.mp3"},
+  {img:"assets/高音譜號第一線mi五線譜.png", audio:"audio/高音譜號第一線mi.mp3"},
+  {img:"assets/高音譜號第二線sol五線譜.png", audio:"audio/高音譜號第二線sol.mp3"},
+  {img:"assets/高音譜號第三線si五線譜.png", audio:"audio/高音譜號第三線si.mp3"},
+  {img:"assets/高音譜號第四間mi五線譜.png", audio:"audio/高音譜號第四間mi.mp3"},
+  {img:"assets/高音譜號上加兩間si五線譜.png", audio:"audio/高音譜號上加兩間si.mp3"},
+  {img:"assets/高音譜號下一間re五線譜.png", audio:"audio/高音譜號下一間re.mp3"},
+  {img:"assets/高音譜號第一間fa五線譜.png", audio:"audio/高音譜號第一間fa.mp3"},
+  {img:"assets/高音譜號第二間la五線譜.png", audio:"audio/高音譜號第二間la.mp3"},
+  {img:"assets/高音譜號第三間do五線譜.png", audio:"audio/高音譜號第三間do.mp3"},
+  {img:"assets/高音譜號第五線fa五線譜.png", audio:"audio/高音譜號第五線fa.mp3"},
+  {img:"assets/高音譜號第四線re五線譜.png", audio:"audio/高音譜號第四線re.mp3"},
+  {img:"assets/低音譜號上加一線do五線譜.png", audio:"audio/低音譜號上加一線do.mp3"},
+  {img:"assets/低音譜號下加一線mi五線譜.png", audio:"audio/低音譜號下加一線mi.mp3"},
+  {img:"assets/低音譜號下加三線la五線譜.png", audio:"audio/低音譜號下加三線la.mp3"},
+  {img:"assets/低音譜號下加兩線do五線譜.png", audio:"audio/低音譜號下加兩線do.mp3"},
+  {img:"assets/低音譜號第一線sol五線譜.png", audio:"audio/低音譜號第一線sol.mp3"},
+  {img:"assets/低音譜號第二線si五線譜.png", audio:"audio/低音譜號第二線si.mp3"},
+  {img:"assets/低音譜號第三線re五線譜.png", audio:"audio/低音譜號第三線re.mp3"},
+  {img:"assets/低音譜號第四間sol五線譜.png", audio:"audio/低音譜號第四間sol.mp3"},
+  {img:"assets/高音譜號上加一間sol五線譜.png", audio:"audio/高音譜號上加一間sol.mp3"},
+  {img:"assets/高音譜號上加三間re五線譜.png", audio:"audio/高音譜號上加三間re.mp3"}
+];
+
+/* ========= 音訊播放器（單一元素 + 解鎖） ========= */
+const audioEl = new Audio();
+audioEl.preload = "auto";
+audioEl.playsInline = true;
+let audioUnlocked = false;
+
+function showUnlock() {
+  document.getElementById('unlock-audio').style.display = 'flex';
+}
+function hideUnlock() {
+  document.getElementById('unlock-audio').style.display = 'none';
+}
+async function unlockAudio(){
+  try{
+    // 播放極短無聲音以解鎖
+    audioEl.src = "data:audio/mp3;base64,//uQZAAAAAAAAAAAAAA"; 
+    await audioEl.play().catch(()=>{});
+    audioEl.pause();
+    audioUnlocked = true;
+    hideUnlock();
+  }catch(e){
+    showUnlock();
+  }
+}
+
+/* ========= 遊戲狀態 ========= */
+let running=false, paused=false, timer=null;
+let interval=1500;
+let idx=0, TOTAL_QUESTIONS=30;
+let hitCount=0, wrong=0, missed=0;
+let shouldHit=false;
+
+const imgEl = document.getElementById('cardImage');
+const msgEl = document.getElementById('msg');
+const hitEl = document.getElementById('hitCount');
+const wrongEl = document.getElementById('wrong');
+const missedEl = document.getElementById('missed');
+const speedEl = document.getElementById('speed');
+const speedLabel = document.getElementById('speedLabel');
+const volEl = document.getElementById('volume');
+const mismatchEl = document.getElementById('mismatch');
+const mismatchLabel = document.getElementById('mismatchLabel');
+
+function showStartScreen(){ document.getElementById('intro').style.display='flex'; }
+function updateStats(){ hitEl.textContent=hitCount; wrongEl.textContent=wrong; missedEl.textContent=missed; }
+mismatchEl.addEventListener('input',e=>{ mismatchLabel.textContent = e.target.value + '%'; });
+speedEl.addEventListener('input',e=>{ interval=parseInt(e.target.value,10); speedLabel.textContent=(interval/1000).toFixed(2)+'s'; });
+
+function playAudio(srcPath){
+  msgEl.textContent = '';
+  // 設定音量與來源（中文路徑 encodeURI）
+  audioEl.volume = parseFloat(volEl.value);
+  audioEl.src = encodeURI(srcPath);
+  const p = audioEl.play();
+  if (p && typeof p.catch === 'function') {
+    p.catch(()=>{
+      msgEl.textContent = "（偵測到播放失敗，請關閉靜音）";
+      if(!audioUnlocked) showUnlock();
+    });
+  }
+}
+
+function makeQuestion(card){
+  const chance = parseInt(mismatchEl.value,10); // 出錯機率%
+  if(Math.random()*100 < chance){
+    let picked;
+    do { picked = CARDS[Math.floor(Math.random()*CARDS.length)]; } while (picked.audio === card.audio);
+    return {shouldHit:false, audioSrc:picked.audio};
+  }else{
+    return {shouldHit:true, audioSrc:card.audio};
+  }
+}
+
+function nextStep(){
+  if(!running || paused) return;
+  if(idx>0 && shouldHit){ missed++; updateStats(); }
+  if(idx>=TOTAL_QUESTIONS){ finish(); return; }
+
+  const card = CARDS[Math.floor(Math.random()*CARDS.length)];
+  imgEl.src = card.img;
+  imgEl.onerror = ()=>{ msgEl.textContent="找不到圖片："+card.img; };
+
+  const q = makeQuestion(card);
+  shouldHit = q.shouldHit;
+  playAudio(q.audioSrc);
+
+  idx++;
+  timer = setTimeout(nextStep, interval);
+}
+
+function startGame(){
+  if(!audioUnlocked) unlockAudio(); // 先嘗試解鎖音訊
+  if(running) return;
+  document.getElementById('intro').style.display='none';
+  document.getElementById('result').style.display='none';
+
+  interval = parseInt(document.getElementById('prefSpeed').value,10);
+  document.getElementById('speed').value = interval;
+  document.getElementById('speedLabel').textContent=(interval/1000).toFixed(2)+'s';
+
+  const prefMis = parseInt(document.getElementById('prefMismatch').value,10);
+  document.getElementById('mismatch').value = prefMis;
+  document.getElementById('mismatchLabel').textContent = prefMis + '%';
+
+  idx=0; hitCount=0; wrong=0; missed=0; shouldHit=false; updateStats(); msgEl.textContent='遊戲開始！';
+  running=true; paused=false;
+  nextStep();
+}
+function togglePause(){ if(!running) return; paused=!paused; msgEl.textContent = paused?'已暫停（再按可繼續）':'繼續中…'; if(!paused) nextStep(); }
+function resetGame(){ running=false; paused=false; if(timer){clearTimeout(timer); timer=null;} idx=0; hitCount=0; wrong=0; missed=0; shouldHit=false; updateStats(); imgEl.removeAttribute('src'); msgEl.textContent='已重置。'; }
+function onHit(){
+  if(!running || paused) return;
+  if(shouldHit){ hitCount++; shouldHit=false; msgEl.textContent='✔ 拍對了！'; if(navigator.vibrate) navigator.vibrate(25); }
+  else{ wrong++; msgEl.textContent='✘ 拍錯！'; if(navigator.vibrate) navigator.vibrate([20,40,20]); }
+  updateStats();
+}
+
+/* ========= 排行榜（本機） ========= */
+const STORE_KEY = 'note_game_leaderboard_v1';
+function loadBoard(){ try{ return JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(_){ return []; } }
+function saveBoard(list){ localStorage.setItem(STORE_KEY, JSON.stringify(list)); }
+function pushScore(entry){
+  const list = loadBoard();
+  list.push(entry);
+  // 依正確率 desc，再依速度 asc，再依日期 desc
+  list.sort((a,b)=> b.acc - a.acc || a.speed - b.speed || (b.time - a.time));
+  saveBoard(list.slice(0,20));
+}
+function fmtTime(t){ const d = new Date(t); const pad = n=> String(n).padStart(2,'0'); return `${d.getFullYear()}/${pad(d.getMonth()+1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+function renderBoard(){
+  const tbody = document.querySelector('#boardTable tbody');
+  tbody.innerHTML = '';
+  loadBoard().forEach((r,i)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${i+1}</td>
+      <td>${r.name}</td>
+      <td><b>${r.acc}%</b></td>
+      <td>${r.correct}/${r.wrong}/${r.miss}</td>
+      <td>${(r.speed/1000).toFixed(2)}s</td>
+      <td>${r.diff}%</td>
+      <td>${fmtTime(r.time)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* ========= 成績結束與存檔 ========= */
+function finish(){
+  running=false; if(timer){clearTimeout(timer); timer=null;}
+  if(shouldHit){ missed++; shouldHit=false; }
+  updateStats();
+
+  const total = hitCount + wrong + missed;
+  const acc = total ? Math.round(hitCount/total*100) : 0;
+  let grade="太強了！", cls="good";
+  if(acc>=90){ grade="太強了！完美聽力！"; cls="good"; }
+  else if(acc>=75){ grade="很不錯！再挑戰更快速度吧。"; cls="mid"; }
+  else if(acc>=60){ grade="有進步！多練幾次就更穩。"; cls="low"; }
+  else { grade="建議調慢速度或降低困難程度。"; cls="badc"; }
+
+  document.getElementById('rHit').textContent=hitCount;
+  document.getElementById('rWrong').textContent=wrong;
+  document.getElementById('rMissed').textContent=missed;
+  document.getElementById('rAcc').textContent=acc+'%';
+  const g=document.getElementById('rGrade'); g.className='grade '+cls; g.textContent=grade;
+
+  setTimeout(()=>{
+    let name = prompt('輸入名稱以儲存到排行榜（可留空使用「玩家」）：') || '玩家';
+    pushScore({ name, acc, correct:hitCount, wrong, miss:missed, speed:interval, diff:parseInt(mismatchEl.value,10), time:Date.now() });
+  }, 250);
+
+  document.getElementById('result').style.display='flex';
+}
+
+/* ========= 事件 ========= */
+document.getElementById('start').onclick=startGame;
+document.getElementById('startNow').onclick=startGame;
+document.getElementById('pause').onclick=togglePause;
+document.getElementById('reset').onclick=resetGame;
+document.getElementById('hitBtn').onclick=onHit;
+document.getElementById('retry').onclick=()=>{ document.getElementById('result').style.display='none'; resetGame(); startGame(); };
+document.addEventListener('keydown',e=>{ if(e.code==='Space'){ e.preventDefault(); onHit(); } });
+
+document.getElementById('prefSpeed').addEventListener('input',e=>{
+  const v=parseInt(e.target.value,10);
+  document.getElementById('prefSpeedLabel').textContent=(v/1000).toFixed(2)+'s';
+});
+document.getElementById('prefMismatch').addEventListener('input',e=>{
+  const v=parseInt(e.target.value,10);
+  document.getElementById('prefMismatchLabel').textContent=v+'%';
+});
+
+/* 排行榜開關 */
+document.getElementById('board').onclick=()=>{ renderBoard(); document.getElementById('leader').style.display='flex'; };
+document.getElementById('closeBoard').onclick=()=>{ document.getElementById('leader').style.display='none'; };
+document.getElementById('clearBoard').onclick=()=>{
+  if(confirm('確定要清除本機排行榜嗎？（無法復原）')){
+    localStorage.removeItem(STORE_KEY);
+    renderBoard();
+  }
+};
+
+/* 任何第一次觸控/點擊都嘗試解鎖音訊（保險） */
+['start','startNow','hitBtn'].forEach(id=>{
+  const b = document.getElementById(id);
+  if (b) b.addEventListener('click', ()=>{ if(!audioUnlocked) unlockAudio(); }, { once:true });
+});
+document.addEventListener('touchstart', ()=>{ if(!audioUnlocked) unlockAudio(); }, { passive:true, once:true });
+
+</script>
+</body>
+</html>

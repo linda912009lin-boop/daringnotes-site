@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8"/>
+<!-- 固定寬度 1200：所有裝置都以相同版面呈現 -->
+<meta name="viewport" content="width=1200, initial-scale=1, viewport-fit=cover"/>
+<title>音符消消樂（固定版面 + 排行榜）</title>
+<style>
+  :root{
+    --bg:#fff; --text:#222; --muted:#666; --border:#ddd; --panel:#f8f8f8;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:"Microsoft JhengHei","PingFang TC",system-ui,sans-serif}
+
+  /* ---- 固定 1200px 版面：所有區塊寬度一致 ---- */
+  header, main, footer, .creditbar{width:1200px; margin:0 auto;}
+
+  header{position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid var(--border)}
+  .wrap{
+    width:1200px;margin:0 auto;padding:12px 14px 8px;
+    display:grid;grid-template-columns:1fr auto auto;grid-template-rows:auto auto;gap:6px 12px;align-items:center
+  }
+  .title{grid-column:1/2;grid-row:1/2;font-weight:900;font-size:32px}
+  .minirow{grid-column:1/2;grid-row:2/3;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .rightTop{grid-column:3/4;grid-row:1/3;display:flex;gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap}
+  .group{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:6px 8px;display:flex;align-items:center;gap:8px}
+  .group.compact{transform-origin:left center;font-size:12px}
+  .group.smalltext{font-size:12px}
+  button,input[type="range"]{border:1px solid var(--border);background:#fff;border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
+
+  /* ---- 遊戲區固定 9 欄、固定卡牌尺寸 ---- */
+  #game-board{
+    display:grid;
+    grid-template-columns: repeat(9, 120px);
+    grid-auto-rows: 180px;
+    gap:10px;
+    width:1200px;
+    margin:10px auto 20px;
+    justify-content:center; /* 讓 9 欄居中 */
+  }
+  .card{
+    position:relative;width:120px;height:180px;
+    border:1px solid var(--border);border-radius:10px;background:#fff;
+    box-shadow:0 2px 6px rgba(0,0,0,.08);
+    cursor:pointer;display:grid;place-items:center;overflow:hidden
+  }
+  .card img{max-width:100%;max-height:100%;object-fit:contain;pointer-events:none}
+  .badge{position:absolute;top:6px;left:6px;font-size:11px;padding:2px 6px;border-radius:999px}
+  .badge.staff{background:#cfe8ff;color:#06407a} .badge.name{background:#d8f5e8;color:#0f4a2f} .badge.solfege{background:#fff3cd;color:#7a5c00}
+  .selected{outline:3px solid #3b82f6; outline-offset:-3px}
+  .hidden{visibility:hidden}
+
+  /* 提示以「框框閃爍」呈現（非線條） */
+  .hint{animation:pulse 1s infinite; box-shadow:0 0 0 3px rgba(255,153,0,.65) inset, 0 0 0 3px rgba(255,153,0,.65)}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(255,153,0,0) inset, 0 0 0 0 rgba(255,153,0,0)}
+    50%{box-shadow:0 0 0 6px rgba(255,153,0,.65) inset, 0 0 0 6px rgba(255,153,0,.65)}
+    100%{box-shadow:0 0 0 0 rgba(255,153,0,0) inset, 0 0 0 0 rgba(255,153,0,0)}
+  }
+
+  footer{position:static;background:#fff;border-top:1px solid var(--border);margin-top:20px}
+  .foot{width:1200px;margin:0 auto;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:12px;gap:10px;flex-wrap:wrap}
+
+  .creditbar{position:static;background:#fafafa;border-top:1px solid #eee;color:#777;font-size:12px;text-align:center;padding:8px 8px 12px}
+  .creditbar a{color:#667; text-decoration:underline}
+
+  dialog{border:none;border-radius:12px;max-width:760px;width:760px;background:#fff;box-shadow:0 24px 80px rgba(0,0,0,.25)}
+  .dlg-head{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border)}
+  .dlg-body{padding:14px;line-height:1.6;max-height:65vh;overflow:auto}
+  .dlg-actions{display:flex;justify-content:flex-end;gap:8px;padding:0 14px 14px}
+  .mode-pill{background:#eef;border:1px solid #cfe;font-size:12px;padding:4px 8px;border-radius:999px;margin-left:8px}
+
+  .toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:999px;font-size:12px;opacity:.9;display:none;z-index:50}
+
+  .modeBtn{border:2px solid #cfd7ff}
+  .modeBtn.active{border:2px solid #3b82f6; background:#eef5ff}
+
+  /* 已移除所有 RWD @media，確保在各裝置外觀一致 */
+</style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <div class="title"><span id="titleText">音符消消樂（簡單版）</span> <span id="modePill" class="mode-pill">簡單</span></div>
+      <div class="minirow">
+        <div class="group compact">
+          <span>BGM</span><input id="volBgm" type="range" min="0" max="1" step="0.01" value="0.5">
+          <span>✔</span><input id="volOk" type="range" min="0" max="1" step="0.01" value="0.8">
+          <span>✖</span><input id="volNg" type="range" min="0" max="1" step="0.01" value="0.8">
+        </div>
+        <div class="group smalltext"><button id="btnHowTo">遊戲玩法</button></div>
+        <div class="group smalltext"><button id="btnLeaderboard">排行榜</button></div>
+        <div class="group smalltext"><button id="btnRestart">重新開始</button></div>
+      </div>
+      <div class="rightTop">
+        <div class="group smalltext">分數 <b id="score">0</b></div>
+        <div class="group smalltext">時間 <b id="time">00:00</b></div>
+      </div>
+    </div>
+  </header>
+
+  <main><div id="game-board"></div></main>
+
+  <footer>
+    <div class="foot">
+      <div>一次需選 <b>三張</b>（同音高：五線譜 + 音名 + 唱名）。每組 +5 分。</div>
+      <div>30 秒無解 → 自動亮出可消組合；可隨時點「遊戲玩法」。</div>
+    </div>
+  </footer>
+
+  <div class="creditbar">
+    遊戲音樂來源： “Bittersweet” Kevin MacLeod (<a href="https://incompetech.com" target="_blank">incompetech.com</a>) ·
+    Licensed under <a href="http://creativecommons.org/licenses/by/4.0/" target="_blank">CC BY 4.0</a>
+  </div>
+
+  <div id="toast" class="toast">卡卡了嗎？幫你亮出一組可以消的牌！</div>
+
+  <!-- 遊戲解說與模式選擇 -->
+  <dialog id="dlgHow">
+    <div class="dlg-head"><div>遊戲解說</div></div>
+    <div class="dlg-body">
+      <p><b>選擇模式：</b></p>
+      <div style="display:flex; gap:8px; margin-bottom:8px; flex-wrap:wrap;">
+        <button id="startEasy" class="modeBtn">簡單版</button>
+        <button id="startHard" class="modeBtn">困難版</button>
+      </div>
+      <p id="selectStatus" style="color:#3b82f6; font-weight:700; display:none;">已選擇：—</p>
+      <p><b>規則：</b>請找出同音高的三張卡牌（<b>五線譜 + 音名 + 唱名</b>）即可消除，並且能獲得 <b>5 分</b>。</p>
+      <p><b>提示：</b>若 <b>30 秒</b>還未消除卡牌，系統會自動閃爍一組可消除的牌，協助你完成遊戲任務。</p>
+    </div>
+    <div class="dlg-actions"><button id="dlgStartClose" disabled>遊戲開始</button></div>
+  </dialog>
+
+  <!-- 過關結算 -->
+  <dialog id="dlgResult">
+    <div class="dlg-head"><div>結果</div></div>
+    <div class="dlg-body">
+      <h3>🎉 恭喜過關！</h3>
+      <p>成績分數：<b id="finalScore">0</b></p>
+      <p>遊戲時間：<b id="finalTime">00:00</b></p>
+      <div style="margin-top:10px;">
+        <label>你的名字： <input id="playerName" placeholder="輸入名字" maxlength="20" style="padding:6px 8px;border:1px solid #ccc;border-radius:8px"/></label>
+        <button id="btnSubmitScore">送出到排行榜</button>
+      </div>
+    </div>
+    <div class="dlg-actions">
+      <button id="btnReplay">再玩一次</button>
+      <button id="btnBackToModes">回到模式選擇</button>
+    </div>
+  </dialog>
+
+  <!-- 排行榜 -->
+  <dialog id="dlgBoard">
+    <div class="dlg-head"><div>排行榜（本機）</div></div>
+    <div class="dlg-body">
+      <table id="boardTable" style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr style="background:#f2f2f7">
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">#</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">名字</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">模式</th>
+            <th style="text-align:right; padding:8px; border-bottom:1px solid #ddd;">分數</th>
+            <th style="text-align:right; padding:8px; border-bottom:1px solid #ddd;">時間</th>
+            <th style="text-align:left; padding:8px; border-bottom:1px solid #ddd;">日期</th>
+          </tr>
+        </thead>
+        <tbody id="boardBody"></tbody>
+      </table>
+    </div>
+    <div class="dlg-actions">
+      <button id="btnClearBoard" style="color:#b00020">清除排行榜（本機）</button>
+      <button id="btnCloseBoard">關閉</button>
+    </div>
+  </dialog>
+
+  <audio id="bgm" loop src="bgm.mp3"></audio>
+  <audio id="sOk" src="correct.mp3"></audio>
+  <audio id="sNg" src="wrong.mp3"></audio>
+
+  <script>
+    // ====== 卡片清單（沿用原檔） ======
+    const ALL_NOTE_IDS = [
+      "低音譜號下加三間si","低音譜號下加三線la","低音譜號下加兩間re","低音譜號下加兩線do",
+      "高音譜號上加三間re","高音譜號上加三線mi","高音譜號上加兩間si","高音譜號上加兩線do",
+      "低音譜號下加一間fa","低音譜號下加一線mi","低音譜號第一間la","低音譜號第一線sol","低音譜號第二線si",
+      "高音譜號上加一間sol","高音譜號上加一線la","高音譜號第五線fa","高音譜號第四間mi","高音譜號第四線re",
+      "低音譜號上加一間si","低音譜號上加一線do","低音譜號第二間do","低音譜號第三間mi","低音譜號第三線re",
+      "低音譜號第四間sol","低音譜號第四線fa","低音譜號第五線la","高音譜號下加一線do","高音譜號下一間re",
+      "高音譜號第一線mi","高音譜號第一間fa","高音譜號第二線sol","高音譜號第二間la","高音譜號第三線si",
+      "高音譜號第三間do"
+    ];
+    const ALL_CARDS = ALL_NOTE_IDS.flatMap(id => ([
+      {id, type:"staff",   src:`cards/${id}五線譜.png`},
+      {id, type:"name",    src:`cards/${id}音名.png`},
+      {id, type:"solfege", src:`cards/${id}唱名.png`}
+    ]));
+
+    // ====== 允許的跨譜號等值（沿用原檔） ======
+    const OVERRIDES = {
+      "低音譜號上加一線do": new Set(["低音譜號上加一線do","高音譜號下加一線do"]),
+      "高音譜號下加一線do": new Set(["低音譜號上加一線do","高音譜號下加一線do"]),
+      "高音譜號下一間re": new Set(["高音譜號下一間re","低音譜號第三線re"]),
+      "低音譜號第三線re": new Set(["高音譜號下一間re","低音譜號第三線re"]),
+      "高音譜號第一線mi": new Set(["高音譜號第一線mi","低音譜號第三間mi"]),
+      "低音譜號第三間mi": new Set(["高音譜號第一線mi","低音譜號第三間mi"]),
+      "高音譜號第一間fa": new Set(["高音譜號第一間fa","低音譜號第四線fa"]),
+      "低音譜號第四線fa": new Set(["高音譜號第一間fa","低音譜號第四線fa"]),
+      "高音譜號第二線sol": new Set(["高音譜號第二線sol","低音譜號第四間sol"]),
+      "低音譜號第四間sol": new Set(["高音譜號第二線sol","低音譜號第四間sol"]),
+      "高音譜號第二間la": new Set(["高音譜號第二間la","低音譜號第五線la"]),
+      "低音譜號第五線la": new Set(["高音譜號第二間la","低音譜號第五線la"]),
+      "高音譜號第三線si": new Set(["高音譜號第三線si","低音譜號上加一間si"]),
+      "低音譜號上加一間si": new Set(["高音譜號第三線si","低音譜號上加一間si"])
+    };
+
+    // ====== DOM ======
+    const board = document.getElementById('game-board');
+    const scoreEl = document.getElementById('score');
+    const timeEl = document.getElementById('time');
+    const toast = document.getElementById('toast');
+    const titleText = document.getElementById('titleText');
+    const modePill = document.getElementById('modePill');
+    const bgm = document.getElementById('bgm');
+    const sOk = document.getElementById('sOk');
+    const sNg = document.getElementById('sNg');
+    const dlg = document.getElementById('dlgHow');
+    const dlgResult = document.getElementById('dlgResult');
+    const finalScoreEl = document.getElementById('finalScore');
+    const finalTimeEl = document.getElementById('finalTime');
+    const dlgBoard = document.getElementById('dlgBoard');
+    const boardBody = document.getElementById('boardBody');
+
+    // ====== State ======
+    const MODE = { EASY:'easy', HARD:'hard' };
+    const GROUPS = { easy: 9, hard: 14 };
+    let selectedMode = null; // 必須先選擇
+    let currentMode = MODE.EASY;
+    const state = { deck: [], open: [], score: 0, seconds: 0, timer: null, matchedTriples: 0, targetTriples: 0 };
+    let nextHintAt = Date.now() + 30000;
+    let hintShown = false;
+
+    // ====== Utils ======
+    function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fmt(sec){ const m=Math.floor(sec/60), s=Math.floor(sec%60); return pad2(m)+':'+pad2(s); }
+    function tick(){ state.seconds++; timeEl.textContent = fmt(state.seconds); if(Date.now()>=nextHintAt) showHint(); }
+    function startTimer(){ if(state.timer) clearInterval(state.timer); state.timer = setInterval(tick, 1000); }
+    function stopTimer(){ if(state.timer) clearInterval(state.timer); state.timer = null; }
+
+    // ====== Game build/render（固定 9 欄） ======
+    function pickDeck(groups){
+      const uniqueIds = Array.from(new Set(ALL_CARDS.map(c=>c.id)));
+      shuffle(uniqueIds);
+      const ids = uniqueIds.slice(0, groups);
+      const triples = [];
+      for(const id of ids){
+        const staff = ALL_CARDS.find(c=>c.id===id && c.type==='staff');
+        const name  = ALL_CARDS.find(c=>c.id===id && c.type==='name');
+        const sol   = ALL_CARDS.find(c=>c.id===id && c.type==='solfege');
+        if(staff && name && sol){ triples.push(staff, name, sol); }
+      }
+      return shuffle(triples);
+    }
+
+    function render(){
+      board.innerHTML='';
+      for(const c of state.deck){
+        const d = document.createElement('div');
+        d.className = 'card';
+        d.dataset.idx = c.idx;
+        const img = document.createElement('img');
+        img.src = c.src; img.alt = c.id + ' ' + c.type;
+        const badge = document.createElement('div');
+        badge.className = 'badge ' + (c.type==='staff'?'staff':c.type==='name'?'name':'solfege');
+        badge.textContent = c.type==='staff'?'五線譜':(c.type==='name'?'音名':'唱名');
+        d.appendChild(img); d.appendChild(badge);
+        d.addEventListener('click', ()=>onPick(d, c));
+        board.appendChild(d);
+      }
+    }
+
+    function build(){
+      const groups = GROUPS[currentMode];
+      const deck = pickDeck(groups);
+      state.deck = deck.map((c,i)=>Object.assign({idx:i, matched:false}, c));
+      state.targetTriples = groups;
+      state.matchedTriples = 0;
+      render();
+    }
+
+    function resetGame(){
+      stopTimer();
+      state.seconds = 0; timeEl.textContent = '00:00';
+      state.score = 0; scoreEl.textContent = '0';
+      state.open = [];
+      clearHints();
+      build();
+      startTimer();
+      bgm.currentTime = 0; bgm.play().catch(()=>{});
+      scheduleHint();
+    }
+
+    // ====== Hint & validation（保留原規則） ======
+    function scheduleHint(){ nextHintAt = Date.now() + 30000; hintShown = false; clearHints(); hideToast(); }
+    function hideToast(){ toast.style.display='none'; }
+    function showToast(){ toast.style.display='block'; setTimeout(hideToast, 2500); }
+    function clearHints(){ document.querySelectorAll('.card.hint').forEach(el=> el.classList.remove('hint')); }
+
+    function isValidTriple(a,b,c){
+      const arr=[a,b,c];
+      const staff = arr.find(x=>x.type==='staff');
+      const labels = arr.filter(x=>x.type!=='staff');
+      if(!staff || labels.length!==2) return false;
+      const allow = OVERRIDES[staff.id] || new Set([staff.id]);
+      return allow.has(labels[0].id) && allow.has(labels[1].id) && (labels[0].type!==labels[1].type);
+    }
+
+    function findHintTriple(){
+      const unmatched = state.deck.filter(x=>!x.matched);
+      const staffs = unmatched.filter(x=>x.type==='staff');
+      const names = unmatched.filter(x=>x.type==='name');
+      const sols  = unmatched.filter(x=>x.type==='solfege');
+      for(const s of staffs){
+        const allow = OVERRIDES[s.id] || new Set([s.id]);
+        const n = names.find(x=> allow.has(x.id));
+        const z = sols.find(x=> allow.has(x.id));
+        if(n && z) return [s,n,z];
+      }
+      return null;
+    }
+
+    function showHint(){
+      if(hintShown) return;
+      const triple = findHintTriple();
+      if(!triple) return;
+      clearHints();
+      for(const x of triple){
+        const el = board.querySelector('[data-idx="'+x.idx+'"]');
+        if(el) el.classList.add('hint');
+      }
+      showToast();
+      hintShown = true;
+      nextHintAt = Date.now() + 20000;
+    }
+
+    function onPick(node, card){
+      scheduleHint();
+      if(card.matched) return;
+      if(state.open.some(o=>o.idx===card.idx)) return;
+      node.classList.add('selected');
+      state.open.push(card);
+
+      if(state.open.length===3){
+        const [a,b,c] = state.open;
+        if(isValidTriple(a,b,c)){
+          sOk.currentTime=0; sOk.play().catch(()=>{});
+          state.score += 5; scoreEl.textContent = String(state.score);
+          for(const x of state.open){
+            x.matched = true;
+            const el = board.querySelector('[data-idx="'+x.idx+'"]');
+            if(el) el.classList.add('hidden');
+          }
+          state.matchedTriples++;
+          if(state.matchedTriples >= state.targetTriples){
+            stopTimer();
+            finalScoreEl.textContent = state.score;
+            finalTimeEl.textContent = fmt(state.seconds);
+            dlgResult.showModal();
+          }
+        } else {
+          sNg.currentTime=0; sNg.play().catch(()=>{});
+          for(const x of state.open){
+            const el = board.querySelector('[data-idx="'+x.idx+'"]');
+            if(el) el.classList.remove('selected');
+          }
+        }
+        state.open = [];
+      }
+    }
+
+    // ====== Leaderboard（沿用原本本機儲存） ======
+    function loadBoard(){
+      try { return JSON.parse(localStorage.getItem('noteGameBoard')||'[]'); } catch(e){ return []; }
+    }
+    function saveBoard(rows){ localStorage.setItem('noteGameBoard', JSON.stringify(rows)); }
+    function pushBoard(row){
+      const rows = loadBoard();
+      rows.push(row);
+      rows.sort((a,b)=> (b.score - a.score) || (a.seconds - b.seconds) || (b.ts - a.ts) );
+      saveBoard(rows.slice(0,50));
+    }
+    function renderBoard(){
+      const rows = loadBoard();
+      boardBody.innerHTML = '';
+      rows.forEach((r, i)=>{
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding:6px;border-bottom:1px solid #eee;">${i+1}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee;">${r.name||'—'}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee;">${r.mode==='easy'?'簡單':'困難'}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee; text-align:right;">${r.score}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee; text-align:right;">${fmt(r.seconds)}</td>
+          <td style="padding:6px;border-bottom:1px solid #eee;">${new Date(r.ts).toLocaleString()}</td>`;
+        boardBody.appendChild(tr);
+      });
+    }
+
+    // ====== Controls ======
+    document.getElementById('btnRestart').addEventListener('click', resetGame);
+    document.getElementById('volBgm').addEventListener('input', e=> bgm.volume = e.target.value);
+    document.getElementById('volOk').addEventListener('input', e=> sOk.volume = e.target.value);
+    document.getElementById('volNg').addEventListener('input', e=> sNg.volume = e.target.value);
+    document.getElementById('btnLeaderboard').addEventListener('click', ()=>{ renderBoard(); dlgBoard.showModal(); });
+    document.getElementById('btnCloseBoard').addEventListener('click', ()=> dlgBoard.close());
+    document.getElementById('btnClearBoard').addEventListener('click', ()=>{ if(confirm('確定清除本機排行榜？')){ saveBoard([]); renderBoard(); } });
+
+    // ====== How-to & start flow ======
+    const selectStatus = document.getElementById('selectStatus');
+    const modeButtons = { easy: document.getElementById('startEasy'), hard: document.getElementById('startHard') };
+    modeButtons.easy.addEventListener('click', ()=> chooseMode('easy'));
+    modeButtons.hard.addEventListener('click', ()=> chooseMode('hard'));
+    function chooseMode(m){
+      selectedMode = m;
+      modeButtons.easy.classList.toggle('active', m==='easy');
+      modeButtons.hard.classList.toggle('active', m==='hard');
+      selectStatus.style.display='block';
+      selectStatus.textContent = m==='easy' ? '已選擇：簡單版（9 組 / 27 張卡牌）' : '已選擇：困難版（14 組 / 42 張卡牌）';
+      document.getElementById('dlgStartClose').disabled = false;
+    }
+    document.getElementById('btnHowTo').addEventListener('click', ()=> dlg.showModal());
+    document.getElementById('dlgStartClose').addEventListener('click', ()=> {
+      setMode(selectedMode||'easy');
+      dlg.close();
+      resetGame(); // 直接開始遊戲
+    });
+
+    // ====== Result dialog buttons ======
+    document.getElementById('btnReplay').addEventListener('click', ()=>{ dlgResult.close(); resetGame(); });
+    document.getElementById('btnBackToModes').addEventListener('click', ()=>{
+      dlgResult.close();
+      selectedMode=null;
+      modeButtons.easy.classList.remove('active'); modeButtons.hard.classList.remove('active');
+      selectStatus.style.display='none'; document.getElementById('dlgStartClose').disabled=true;
+      dlg.showModal();
+    });
+    document.getElementById('btnSubmitScore').addEventListener('click', ()=>{
+      const name = document.getElementById('playerName').value.trim() || 'Player';
+      const row = { name, mode: currentMode, score: state.score, seconds: state.seconds, ts: Date.now() };
+      pushBoard(row);
+      document.getElementById('playerName').value='';
+      dlgResult.close();
+      renderBoard();
+      dlgBoard.showModal();
+    });
+
+    function setMode(m){
+      if(m==='easy'){ currentMode='easy'; titleText.textContent='音符消消樂（簡單版）'; modePill.textContent='簡單'; }
+      else { currentMode='hard'; titleText.textContent='音符消消樂（困難版）'; modePill.textContent='困難'; }
+    }
+
+    // 初次載入 → 顯示解說與模式選擇
+    dlg.showModal();
+  </script>
+</body>
+</html>
