@@ -1,0 +1,35 @@
+name: Morning Horoscope
+
+on:
+  schedule:
+    - cron: '0 23 * * *'   # 07:00 台灣時間 (UTC+8)
+  workflow_dispatch:         # 允許手動觸發
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Generate horoscope
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/generate_horoscope.py
+
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add horoscope/data.json
+          git diff --staged --quiet || git commit -m "chore: update daily horoscope $(date -u +%Y-%m-%d)"
+          git push
