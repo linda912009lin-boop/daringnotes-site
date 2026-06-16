@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>財務總覽｜daringnotes.com</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --ink: #1e1f22;
+      --muted: #5b6475;
+      --bd: #e5e7f0;
+      --card: #f7f8fb;
+      --green: #16a34a;
+      --green-bg: #f0fdf4;
+      --blue: #2563eb;
+      --blue-bg: #eff6ff;
+      --amber: #d97706;
+      --amber-bg: #fffbeb;
+      --purple: #7c3aed;
+      --purple-bg: #f5f3ff;
+      --red: #dc2626;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.6 system-ui, "PingFang TC", "Noto Sans TC", sans-serif;
+    }
+    header, footer {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--bd);
+      background: #fff;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .brand { font-weight: 800; font-size: 18px; }
+    .nav a { margin-right: 12px; color: #334155; text-decoration: none; font-size: 14px; }
+    .nav a:hover { color: var(--blue); }
+    .lang { font-size: 13px; color: #64748b; }
+    main { max-width: 1100px; margin: auto; padding: 24px 20px 40px; }
+
+    /* Page title */
+    .page-header { margin-bottom: 24px; }
+    .page-header h1 { margin: 0 0 4px; font-size: 22px; }
+    .page-header p { margin: 0; color: var(--muted); font-size: 14px; }
+    .badge {
+      display: inline-block;
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      margin-left: 8px;
+      vertical-align: middle;
+    }
+
+    /* Period selector */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .toolbar label { font-size: 13px; color: var(--muted); }
+    .period-btn {
+      padding: 5px 14px;
+      border: 1px solid var(--bd);
+      border-radius: 6px;
+      background: var(--card);
+      color: var(--ink);
+      font-size: 13px;
+      cursor: pointer;
+      transition: all .15s;
+    }
+    .period-btn.active, .period-btn:hover {
+      background: var(--blue);
+      color: #fff;
+      border-color: var(--blue);
+    }
+    .update-note {
+      margin-left: auto;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* KPI cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--bd);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+    .kpi-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      margin-bottom: 6px;
+    }
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .kpi-sub {
+      font-size: 12px;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .up { color: var(--green); }
+    .down { color: var(--red); }
+    .neutral { color: var(--muted); }
+
+    /* Two-col layout */
+    .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    @media (max-width: 720px) {
+      .two-col { grid-template-columns: 1fr; }
+      .kpi-value { font-size: 22px; }
+    }
+
+    /* Section card */
+    .section {
+      background: var(--card);
+      border: 1px solid var(--bd);
+      border-radius: 12px;
+      padding: 18px;
+      margin-bottom: 16px;
+    }
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      margin: 0 0 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-title span { color: var(--muted); font-weight: 400; font-size: 12px; }
+
+    /* Bar chart */
+    .bar-chart { display: flex; align-items: flex-end; gap: 6px; height: 140px; }
+    .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; height: 100%; justify-content: flex-end; }
+    .bar {
+      width: 100%;
+      background: var(--blue);
+      border-radius: 4px 4px 0 0;
+      min-height: 4px;
+      position: relative;
+      transition: opacity .15s;
+    }
+    .bar:hover { opacity: .8; }
+    .bar-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+    .bar-val { font-size: 10px; color: var(--ink); font-weight: 600; }
+    .bar.current { background: var(--green); }
+
+    /* Mini line chart using SVG */
+    .sparkline { width: 100%; height: 60px; }
+
+    /* Source breakdown */
+    .source-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--bd);
+      font-size: 13px;
+    }
+    .source-row:last-child { border-bottom: none; }
+    .source-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .source-name { flex: 1; }
+    .source-bar-wrap { width: 120px; height: 6px; background: var(--bd); border-radius: 3px; overflow: hidden; }
+    .source-bar { height: 100%; border-radius: 3px; }
+    .source-pct { font-size: 12px; color: var(--muted); width: 36px; text-align: right; }
+    .source-amt { font-weight: 600; width: 70px; text-align: right; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+      color: var(--muted);
+      padding: 0 8px 8px;
+      border-bottom: 1px solid var(--bd);
+    }
+    th:not(:first-child) { text-align: right; }
+    td {
+      padding: 9px 8px;
+      border-bottom: 1px solid var(--bd);
+      vertical-align: middle;
+    }
+    td:not(:first-child) { text-align: right; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: #f1f5f9; }
+    .rank { font-size: 12px; color: var(--muted); width: 20px; }
+    .pill {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .pill-green { background: var(--green-bg); color: var(--green); }
+    .pill-amber { background: var(--amber-bg); color: var(--amber); }
+    .pill-blue  { background: var(--blue-bg);  color: var(--blue);  }
+
+    /* Monthly table */
+    .month-row td:first-child { color: var(--muted); font-size: 12px; }
+    .progress-cell { min-width: 100px; }
+    .mini-bar-wrap { height: 5px; background: var(--bd); border-radius: 3px; margin-top: 3px; overflow: hidden; }
+    .mini-bar { height: 100%; background: var(--blue); border-radius: 3px; }
+
+    /* Footer */
+    footer { margin-top: 20px; border-top: 1px solid var(--bd); border-bottom: none; }
+    footer div { color: var(--muted); font-size: 13px; }
+
+    /* Notice */
+    .notice {
+      background: var(--amber-bg);
+      border: 1px solid #fde68a;
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #92400e;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand">🎵 音符探險館 <span class="lang">daringnotes.com</span></div>
+  <nav class="nav">
+    <a href="./index.html">首頁 Home</a>
+    <a href="./about.html">關於我們 About</a>
+    <a href="./contact.html">聯絡方式 Contact</a>
+    <a href="./privacy-policy.html">隱私權政策 Privacy</a>
+    <a href="./terms.html">服務條款 Terms</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-header">
+    <h1>財務總覽 <span class="lang">Financial Overview</span><span class="badge">站長專用</span></h1>
+    <p>追蹤網站廣告收益、流量與頁面表現。數據僅供參考，請對照 Google AdSense 後台核實。<br>
+       <span class="lang">Track ad revenue, traffic, and page performance. Verify against your Google AdSense dashboard.</span></p>
+  </div>
+
+  <div class="notice">
+    ⚠️ 此頁面顯示示範數據。請前往
+    <a href="https://adsense.google.com" target="_blank" rel="noopener" style="color:inherit;font-weight:600;">Google AdSense</a>
+    查看實際收益數據。This page shows illustrative data — cross-check with your AdSense dashboard for actuals.
+  </div>
+
+  <div class="toolbar">
+    <label>期間</label>
+    <button class="period-btn" onclick="setPeriod(this,'7d')">7 天</button>
+    <button class="period-btn active" onclick="setPeriod(this,'30d')">30 天</button>
+    <button class="period-btn" onclick="setPeriod(this,'90d')">90 天</button>
+    <button class="period-btn" onclick="setPeriod(this,'ytd')">今年 YTD</button>
+    <span class="update-note">最後更新：<span id="lastUpdate"></span></span>
+  </div>
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi">
+      <div class="kpi-label">本月預估收益</div>
+      <div class="kpi-value" id="kpiRevenue">—</div>
+      <div class="kpi-sub up" id="kpiRevenueSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">頁面瀏覽數 (PV)</div>
+      <div class="kpi-value" id="kpiPV">—</div>
+      <div class="kpi-sub up" id="kpiPVSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">每千次曝光收益 (RPM)</div>
+      <div class="kpi-value" id="kpiRPM">—</div>
+      <div class="kpi-sub neutral" id="kpiRPMSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">廣告點擊次數 (Clicks)</div>
+      <div class="kpi-value" id="kpiClicks">—</div>
+      <div class="kpi-sub up" id="kpiClicksSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">點擊率 (CTR)</div>
+      <div class="kpi-value" id="kpiCTR">—</div>
+      <div class="kpi-sub neutral" id="kpiCTRSub">—</div>
+    </div>
+    <div class="kpi">
+      <div class="kpi-label">每次點擊成本 (CPC)</div>
+      <div class="kpi-value" id="kpiCPC">—</div>
+      <div class="kpi-sub neutral" id="kpiCPCSub">—</div>
+    </div>
+  </div>
+
+  <!-- Charts row -->
+  <div class="two-col">
+    <!-- Monthly revenue bar chart -->
+    <div class="section">
+      <div class="section-title">每月收益 <span>Monthly Revenue (USD)</span></div>
+      <div class="bar-chart" id="barChart"></div>
+    </div>
+
+    <!-- Revenue by source -->
+    <div class="section">
+      <div class="section-title">收益來源 <span>Revenue by Source</span></div>
+      <div id="sourceBreakdown"></div>
+    </div>
+  </div>
+
+  <!-- Page performance table -->
+  <div class="section">
+    <div class="section-title">頁面表現 <span>Page Performance</span></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:24px"></th>
+          <th>頁面</th>
+          <th>瀏覽數</th>
+          <th>廣告曝光</th>
+          <th>收益 (USD)</th>
+          <th>RPM</th>
+          <th>狀態</th>
+        </tr>
+      </thead>
+      <tbody id="pageTable"></tbody>
+    </table>
+  </div>
+
+  <!-- Monthly summary table -->
+  <div class="section">
+    <div class="section-title">月度摘要 <span>Monthly Summary (Last 6 Months)</span></div>
+    <table>
+      <thead>
+        <tr>
+          <th>月份</th>
+          <th>收益 (USD)</th>
+          <th>頁面瀏覽</th>
+          <th>RPM</th>
+          <th>CTR</th>
+          <th>趨勢</th>
+        </tr>
+      </thead>
+      <tbody id="monthTable"></tbody>
+    </table>
+  </div>
+</main>
+
+<footer>
+  <div>© 2025 音符探險館 | daringnotes.com｜此頁面為站長財務參考用途，非公開頁面。</div>
+</footer>
+
+<script>
+  /* ── Illustrative data ── */
+  const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+  const now = new Date();
+  const curMonth = now.getMonth(); // 0-indexed
+
+  /* Monthly revenue data (USD) — illustrative */
+  const monthlyRevenue = [4.12, 3.87, 5.43, 6.21, 7.08, 5.95, 8.34, 9.12, 10.47, 11.23, 12.05, 13.40];
+  const monthlyPV      = [2100, 1980, 2450, 2800, 3200, 2900, 3700, 4100, 4600, 5000, 5300, 5900];
+  const monthlyCTR     = [0.82, 0.79, 0.91, 0.88, 0.95, 0.87, 1.02, 1.05, 1.10, 1.08, 1.12, 1.15];
+
+  /* KPI data for "30d" view */
+  const kpiData = {
+    '7d':  { rev:'$3.21',  revTrend:'↑ 8% 較上週',   pv:'1,340', pvTrend:'↑ 12%',  rpm:'$2.39', rpmNote:'每千次曝光', clicks:'31',   clicksTrend:'↑ 5%', ctr:'0.94%', ctrNote:'業界均值 ~1%', cpc:'$0.10', cpcNote:'—' },
+    '30d': { rev:'$13.40', revTrend:'↑ 11% 較上月',  pv:'5,900', pvTrend:'↑ 18%',  rpm:'$2.27', rpmNote:'每千次曝光', clicks:'136',  clicksTrend:'↑ 9%', ctr:'1.15%', ctrNote:'業界均值 ~1%', cpc:'$0.10', cpcNote:'—' },
+    '90d': { rev:'$34.75', revTrend:'↑ 24% 較上季',  pv:'16,200',pvTrend:'↑ 31%',  rpm:'$2.14', rpmNote:'每千次曝光', clicks:'372',  clicksTrend:'↑ 20%',ctr:'1.09%', ctrNote:'業界均值 ~1%', cpc:'$0.09', cpcNote:'—' },
+    'ytd': { rev:'$96.27', revTrend:'本年度至今',     pv:'46,530',pvTrend:'年度累積', rpm:'$2.07', rpmNote:'每千次曝光', clicks:'1,024',clicksTrend:'年度累積',ctr:'1.04%', ctrNote:'業界均值 ~1%', cpc:'$0.09', cpcNote:'—' },
+  };
+
+  /* Page performance — illustrative */
+  const pages = [
+    { name:'首頁 / index.html',       pv:2140, imp:4280, rev:4.86, rpm:1.14, status:'green' },
+    { name:'遊戲三｜找找樂 (game3)', pv:1320, imp:2640, rev:3.21, rpm:1.22, status:'green' },
+    { name:'遊戲四｜消消樂 (game4)', pv:980,  imp:1960, rev:2.53, rpm:1.29, status:'green' },
+    { name:'遊戲一｜躲貓貓 (game1)', pv:720,  imp:1440, rev:1.73, rpm:1.20, status:'green' },
+    { name:'遊戲二｜數獨 (game2)',   pv:460,  imp:920,  rev:0.92, rpm:1.00, status:'amber' },
+    { name:'遊戲五｜心臟病 (game5)', pv:280,  imp:560,  rev:0.15, rpm:0.27, status:'amber' },
+  ];
+
+  /* Revenue sources — illustrative */
+  const sources = [
+    { name:'Google AdSense 顯示廣告', color:'#2563eb', pct:82, rev:10.99 },
+    { name:'AdSense 文字廣告',         color:'#7c3aed', pct:13, rev:1.74 },
+    { name:'AdSense 連結廣告',         color:'#0891b2', pct:5,  rev:0.67 },
+  ];
+
+  let activePeriod = '30d';
+
+  function setPeriod(btn, period) {
+    document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    activePeriod = period;
+    renderKPIs(period);
+  }
+
+  function fmt(n) {
+    if (n >= 1000) return (n/1000).toFixed(1) + 'k';
+    return n.toLocaleString();
+  }
+
+  function renderKPIs(period) {
+    const d = kpiData[period];
+    document.getElementById('kpiRevenue').textContent    = d.rev;
+    document.getElementById('kpiRevenueSub').textContent = d.revTrend;
+    document.getElementById('kpiPV').textContent         = d.pv;
+    document.getElementById('kpiPVSub').textContent      = d.pvTrend;
+    document.getElementById('kpiRPM').textContent        = d.rpm;
+    document.getElementById('kpiRPMSub').textContent     = d.rpmNote;
+    document.getElementById('kpiClicks').textContent     = d.clicks;
+    document.getElementById('kpiClicksSub').textContent  = d.clicksTrend;
+    document.getElementById('kpiCTR').textContent        = d.ctr;
+    document.getElementById('kpiCTRSub').textContent     = d.ctrNote;
+    document.getElementById('kpiCPC').textContent        = d.cpc;
+    document.getElementById('kpiCPCSub').textContent     = d.cpcNote;
+  }
+
+  function renderBarChart() {
+    const container = document.getElementById('barChart');
+    const maxRev = Math.max(...monthlyRevenue);
+    const visible = 8; // show last 8 months
+    const start = Math.max(0, curMonth + 1 - visible);
+    const slice = [];
+    for (let i = start; i <= curMonth; i++) slice.push(i);
+
+    container.innerHTML = slice.map(i => {
+      const pct = (monthlyRevenue[i] / maxRev * 100).toFixed(1);
+      const isCurrent = i === curMonth;
+      return `<div class="bar-wrap">
+        <div class="bar-val">$${monthlyRevenue[i].toFixed(2)}</div>
+        <div class="bar ${isCurrent ? 'current' : ''}" style="height:${pct}%" title="${MONTHS[i]}: $${monthlyRevenue[i]}"></div>
+        <div class="bar-label">${MONTHS[i]}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function renderSources() {
+    const container = document.getElementById('sourceBreakdown');
+    container.innerHTML = sources.map(s => `
+      <div class="source-row">
+        <div class="source-dot" style="background:${s.color}"></div>
+        <div class="source-name">${s.name}</div>
+        <div class="source-bar-wrap">
+          <div class="source-bar" style="width:${s.pct}%;background:${s.color}"></div>
+        </div>
+        <div class="source-pct">${s.pct}%</div>
+        <div class="source-amt">$${s.rev.toFixed(2)}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderPageTable() {
+    const tbody = document.getElementById('pageTable');
+    const statusLabel = { green:'良好', amber:'待優化', red:'偏低' };
+    const statusClass = { green:'pill-green', amber:'pill-amber', red:'pill-blue' };
+    tbody.innerHTML = pages.map((p, i) => `
+      <tr>
+        <td class="rank">${i+1}</td>
+        <td>${p.name}</td>
+        <td>${p.pv.toLocaleString()}</td>
+        <td>${p.imp.toLocaleString()}</td>
+        <td>$${p.rev.toFixed(2)}</td>
+        <td>$${p.rpm.toFixed(2)}</td>
+        <td><span class="pill ${statusClass[p.status]}">${statusLabel[p.status]}</span></td>
+      </tr>
+    `).join('');
+  }
+
+  function renderMonthTable() {
+    const tbody = document.getElementById('monthTable');
+    const maxRev = Math.max(...monthlyRevenue.slice(0, curMonth + 1));
+    const rows = [];
+    for (let i = Math.max(0, curMonth - 5); i <= curMonth; i++) {
+      const rpm = (monthlyRevenue[i] / monthlyPV[i] * 1000).toFixed(2);
+      const barPct = (monthlyRevenue[i] / maxRev * 100).toFixed(0);
+      const trend = i > 0
+        ? (monthlyRevenue[i] >= monthlyRevenue[i-1]
+            ? `<span style="color:var(--green)">↑ ${(((monthlyRevenue[i]-monthlyRevenue[i-1])/monthlyRevenue[i-1])*100).toFixed(0)}%</span>`
+            : `<span style="color:var(--red)">↓ ${(((monthlyRevenue[i-1]-monthlyRevenue[i])/monthlyRevenue[i-1])*100).toFixed(0)}%</span>`)
+        : '—';
+      rows.push(`<tr class="month-row">
+        <td>${MONTHS[i]} ${new Date().getFullYear()}</td>
+        <td>$${monthlyRevenue[i].toFixed(2)}</td>
+        <td class="progress-cell">
+          ${monthlyPV[i].toLocaleString()}
+          <div class="mini-bar-wrap"><div class="mini-bar" style="width:${barPct}%"></div></div>
+        </td>
+        <td>$${rpm}</td>
+        <td>${monthlyCTR[i].toFixed(2)}%</td>
+        <td>${trend}</td>
+      </tr>`);
+    }
+    tbody.innerHTML = rows.join('');
+  }
+
+  /* Init */
+  document.getElementById('lastUpdate').textContent = now.toLocaleDateString('zh-Hant', { year:'numeric', month:'long', day:'numeric' });
+  renderKPIs('30d');
+  renderBarChart();
+  renderSources();
+  renderPageTable();
+  renderMonthTable();
+</script>
+</body>
+</html>
