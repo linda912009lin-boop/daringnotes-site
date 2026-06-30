@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>紫微斗數每日運勢｜daringnotes.com</title>
+<meta name="description" content="輸入您的生辰，取得今日紫微斗數個人化運勢分析。">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9172120437326791" crossorigin="anonymous"></script>
+<style>
+:root{
+  --bg:#fdf8f2;--ink:#1e1f22;--muted:#6b7280;
+  --brand:#7c3aed;--brand2:#a78bfa;--gold:#d97706;
+  --card:#fff;--bd:#e5e7f0;--chip:#f3f0ff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 system-ui,"PingFang TC","Noto Sans TC",sans-serif}
+header{padding:14px 18px;border-bottom:1px solid var(--bd);background:#fff;position:sticky;top:0;z-index:3;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.brand{font-weight:800;font-size:18px}
+.nav a{margin-right:12px;color:#334155;text-decoration:none;font-size:14px}
+main{max-width:800px;margin:auto;padding:24px 18px}
+h1{font-size:26px;font-weight:800;margin:0 0 6px;color:var(--brand)}
+.sub{color:var(--muted);font-size:14px;margin-bottom:24px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;margin-bottom:20px}
+.card h2{margin:0 0 14px;font-size:18px;color:var(--brand);display:flex;align-items:center;gap:8px}
+label{display:block;font-weight:600;margin-bottom:4px;font-size:14px}
+input,select{width:100%;padding:9px 12px;border:1px solid var(--bd);border-radius:10px;font-size:15px;font-family:inherit;background:#fff;color:var(--ink);margin-bottom:14px}
+input:focus,select:focus{outline:2px solid var(--brand);border-color:var(--brand)}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.btn{width:100%;padding:12px;background:var(--brand);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit;transition:.15s}
+.btn:hover{background:#6d28d9}
+.btn:disabled{background:#c4b5fd;cursor:not-allowed}
+#result{display:none}
+.result-header{text-align:center;padding:16px 0 8px}
+.result-header .date{font-size:13px;color:var(--muted);margin-bottom:4px}
+.result-header .name{font-size:22px;font-weight:800;color:var(--brand)}
+.stars{display:flex;gap:4px;justify-content:center;margin:8px 0}
+.star{font-size:22px}
+.star.on{color:#f59e0b}
+.star.off{color:#d1d5db}
+.score-row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin:12px 0}
+.score-chip{background:var(--chip);border-radius:10px;padding:8px 14px;text-align:center;min-width:90px}
+.score-chip .label{font-size:11px;color:var(--muted);display:block}
+.score-chip .val{font-size:22px;font-weight:800;color:var(--brand)}
+.section{margin-top:18px}
+.section-title{font-weight:700;font-size:15px;color:var(--gold);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.fortune-text{font-size:15px;line-height:1.8;color:#374151}
+.tip-box{background:#fefce8;border:1px solid #fde68a;border-radius:10px;padding:12px 14px;font-size:14px;color:#78350f;margin-top:10px}
+.tip-box strong{display:block;margin-bottom:4px}
+.palace-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:8px}
+.palace{background:#f8f5ff;border:1px solid #ddd6fe;border-radius:10px;padding:10px;text-align:center}
+.palace .p-name{font-size:12px;color:var(--muted);margin-bottom:2px}
+.palace .p-star{font-size:14px;font-weight:700;color:var(--brand)}
+.palace .p-mood{font-size:11px;color:#6b7280;margin-top:2px}
+footer{border-top:1px solid var(--bd);padding:14px 18px;font-size:12px;text-align:center;color:#9ca3af;background:#fff}
+@media(max-width:480px){.row{grid-template-columns:1fr}.palace-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">🔮 紫微斗數</div>
+  <nav class="nav">
+    <a href="../index.html">← 回首頁</a>
+    <a href="../about.html">關於我們</a>
+  </nav>
+</header>
+
+<main>
+  <h1>紫微斗數每日運勢</h1>
+  <p class="sub">輸入您的生辰八字，獲取今日個人化命盤分析與運勢指引。</p>
+
+  <div class="card">
+    <h2>⚙️ 輸入生辰資料</h2>
+    <label>出生日期</label>
+    <input type="date" id="birthDate" max="">
+
+    <div class="row">
+      <div>
+        <label>出生時辰</label>
+        <select id="birthHour">
+          <option value="0">子時（23:00–00:59）</option>
+          <option value="1">丑時（01:00–02:59）</option>
+          <option value="2">寅時（03:00–04:59）</option>
+          <option value="3">卯時（05:00–06:59）</option>
+          <option value="4">辰時（07:00–08:59）</option>
+          <option value="5">巳時（09:00–10:59）</option>
+          <option value="6">午時（11:00–12:59）</option>
+          <option value="7">未時（13:00–14:59）</option>
+          <option value="8">申時（15:00–16:59）</option>
+          <option value="9">酉時（17:00–18:59）</option>
+          <option value="10">戌時（19:00–20:59）</option>
+          <option value="11">亥時（21:00–22:59）</option>
+        </select>
+      </div>
+      <div>
+        <label>性別</label>
+        <select id="gender">
+          <option value="male">男</option>
+          <option value="female">女</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="btn" id="calcBtn" onclick="calculate()">✨ 推算今日運勢</button>
+  </div>
+
+  <!-- Result -->
+  <div id="result">
+    <div class="card">
+      <div class="result-header">
+        <div class="date" id="resDate"></div>
+        <div class="name" id="resTitle"></div>
+        <div class="stars" id="resStars"></div>
+      </div>
+
+      <div class="score-row" id="resScores"></div>
+
+      <div class="section">
+        <div class="section-title">🌟 今日總論</div>
+        <div class="fortune-text" id="resOverall"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">💼 事業財運</div>
+        <div class="fortune-text" id="resCareer"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">💕 感情桃花</div>
+        <div class="fortune-text" id="resLove"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🏥 健康提醒</div>
+        <div class="fortune-text" id="resHealth"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">🏠 今日流年宮位</div>
+        <div class="palace-grid" id="resPalaces"></div>
+      </div>
+
+      <div class="tip-box" id="resTip"></div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  © 2025 音符探險館 | daringnotes.com | 僅供娛樂參考，不構成任何專業建議。
+</footer>
+
+<script>
+// ─── Heavenly Stems & Earthly Branches ───────────────────────────────────────
+const STEMS  = ['甲','乙','丙','丁','戊','己','庚','辛','壬','癸'];
+const BRANCH = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+const ZODIAC = ['鼠','牛','虎','兔','龍','蛇','馬','羊','猴','雞','狗','豬'];
+
+// 14 主星
+const MAIN_STARS = [
+  '紫微','天機','太陽','武曲','天同','廉貞',
+  '天府','太陰','貪狼','巨門','天相','天梁','七殺','破軍'
+];
+
+// 12 宮位
+const PALACES = ['命宮','兄弟','夫妻','子女','財帛','疾厄','遷移','交友','事業','田宅','福德','父母'];
+
+// Auspicious / inauspicious tendencies per main star (simplified)
+const STAR_NATURE = {
+  '紫微':'帝星，主尊貴領導',  '天機':'謀略，主機智變化',
+  '太陽':'光明，主貴人緣佳',  '武曲':'財星，主財利豐厚',
+  '天同':'福星，主平順享福',  '廉貞':'囚星，主謹慎自律',
+  '天府':'庫星，主穩健積蓄',  '太陰':'財星，主細膩感性',
+  '貪狼':'慾星，主才藝機緣',  '巨門','天梁':'蔭星，主逢凶化吉',
+  '天相':'印星，主助力扶持',  '七殺':'將星，主開創衝勁',
+  '破軍':'耗星，主變動突破',
+};
+STAR_NATURE['巨門'] = '暗星，主口才辯論';
+STAR_NATURE['天梁'] = '蔭星，主逢凶化吉';
+
+// ─── Core derivation helpers ─────────────────────────────────────────────────
+function lunarYearStem(year){ return STEMS[(year - 4) % 10]; }
+function lunarYearBranch(year){ return BRANCH[(year - 4) % 12]; }
+
+// Simplified: derive a "seed" integer from birth date + hour + gender
+function deriveSeed(year, month, day, hour, gender){
+  return year * 10000 + month * 100 + day + hour * 7 + (gender === 'male' ? 3 : 7);
+}
+
+// Select main star for a palace based on seed
+function palaceStar(seed, palaceIdx){
+  return MAIN_STARS[(seed + palaceIdx * 3) % MAIN_STARS.length];
+}
+
+// Seeded pseudo-random (simple LCG)
+function seededRand(seed){
+  let s = seed;
+  return function(){
+    s = (s * 1664525 + 1013904223) & 0xffffffff;
+    return (s >>> 0) / 4294967296;
+  };
+}
+
+// ─── Daily modifier (changes every day per person) ──────────────────────────
+function todayModifier(seed){
+  const today = new Date();
+  const dayNum = today.getFullYear()*10000 + (today.getMonth()+1)*100 + today.getDate();
+  const rand = seededRand(seed ^ dayNum);
+  return {
+    overall:  Math.floor(rand() * 30) + 55,   // 55–84
+    career:   Math.floor(rand() * 35) + 50,
+    love:     Math.floor(rand() * 40) + 45,
+    health:   Math.floor(rand() * 30) + 55,
+  };
+}
+
+// ─── Fortune text pools ──────────────────────────────────────────────────────
+const OVERALL_TEXTS = [
+  ['今日命宮受吉星護持，行事順遂，宜主動出擊把握機遇，凡事積極態度可獲意外之喜。',
+   '流日星曜吉凶交雜，早晨宜靜待，午後漸入佳境，保持耐心可化險為夷。',
+   '今日整體氣場平穩，適合規劃中長期目標，心態平和則諸事皆宜。'],
+  ['今日流日凶星入位，宜收斂鋒芒，謹言慎行，避免與人口舌之爭，靜則吉動則凶。',
+   '今日運勢起伏較大，情緒易受外界影響，建議減少重大決策，靜觀其變。'],
+  ['今日吉星拱照，貴人緣旺，凡事逢貴人相助，社交場合尤為得力，可主動尋求合作。',
+   '今日紫微星入照，帝王之氣顯現，領導力提升，適合主持重要事務或提案。'],
+];
+const CAREER_TEXTS = [
+  '武曲化祿流入事業宮，財運旺盛，投資理財可小試，但切勿貪多，穩健為上。',
+  '天機星動，思維靈活，適合腦力創作、策略規劃；若有談判或簽約，今日吉時在午後。',
+  '廉貞居事業宮，宜謹守本分，避免走捷徑或鑽空子，腳踏實地方可持久。',
+  '太陽星照，上司或長輩眼緣佳，主動表現自己可獲賞識，升遷機會若隱若現。',
+  '七殺星沖，事業宮動盪，今日不宜輕率簽約或更換工作，靜待時機較為明智。',
+  '天府入財帛，適合整理帳務、盤點資產，理財計畫今日啟動有吉兆。',
+];
+const LOVE_TEXTS = [
+  '太陰化科，情感細膩敏銳，已有伴侶者宜表達關心，增進情感深度；單身者桃花隱現。',
+  '貪狼星動，桃花旺盛，社交圈擴大，單身者易邂逅異性，但需辨別真誠與虛情假意。',
+  '夫妻宮平穩，感情如常，今日適合平淡相守，共同規劃未來，切忌過度計較小事。',
+  '天機入夫妻，雙方可能各有想法，溝通時多聆聽，避免各說各話，以退為進效果更佳。',
+  '今日桃花宮受沖，感情易生波折，已婚者注意溝通方式，單身者不宜貿然告白。',
+  '紫微星拱夫妻，貴氣十足，今日感情運出眾，與意中人共進晚餐是個好主意。',
+];
+const HEALTH_TEXTS = [
+  '今日疾厄宮平靜，整體健康良好，可適當運動增強體能，戶外活動有益身心。',
+  '天機星擾，神經系統較敏感，注意睡眠品質，睡前冥想或泡腳助眠。',
+  '太陰入疾厄，腸胃需注意，飲食宜清淡，避免生冷食物，多補充水分。',
+  '廉貞沖疾厄，注意情緒管理，壓力勿積累，適時放鬆，避免過勞。',
+  '今日健康狀況佳，精力充沛，可嘗試新的運動計畫，但切忌過度，循序漸進為妙。',
+  '七殺動疾厄，注意意外傷害，今日出行需謹慎，避免劇烈運動或危險行為。',
+];
+const TIPS = [
+  { icon:'🎨', title:'今日開運色', text:'深紫色或寶藍色，穿搭或配件使用可助提振運勢。' },
+  { icon:'💎', title:'今日開運方位', text:'今日出行或辦公桌朝向東南方，有助聚氣納財。' },
+  { icon:'🌿', title:'今日宜忌', text:'宜：簽約、社交、學習。忌：借貸、遠行、搬遷。' },
+  { icon:'🔢', title:'今日幸運數字', text:'3、7、12，可在重要場合或選號時參考。' },
+  { icon:'🌸', title:'今日吉花', text:'白玫瑰或梔子花，擺放室內或贈人皆有旺運之效。' },
+];
+
+// ─── Pick text by score bracket ─────────────────────────────────────────────
+function pickText(arr, score, seed, extra=0){
+  const r = seededRand(seed + extra);
+  if(score >= 75) return arr[Math.floor(r() * arr.length)];
+  const fallback = [
+    '今日此宮位能量較弱，宜低調行事，積累實力，來日方可有更佳表現。',
+    '星曜入廟不旺，建議今日放慢腳步，做好基礎，靜待吉時到來。',
+  ];
+  return fallback[Math.floor(r() * fallback.length)];
+}
+
+// ─── Main calculation ────────────────────────────────────────────────────────
+function calculate(){
+  const birthDate = document.getElementById('birthDate').value;
+  const hourIdx   = parseInt(document.getElementById('birthHour').value);
+  const gender    = document.getElementById('gender').value;
+
+  if(!birthDate){ alert('請先輸入出生日期'); return; }
+
+  const [year, month, day] = birthDate.split('-').map(Number);
+  if(year < 1900 || year > 2025){ alert('請輸入 1900–2025 年之間的出生年份'); return; }
+
+  const seed = deriveSeed(year, month, day, hourIdx, gender);
+  const mod  = todayModifier(seed);
+  const rand = seededRand(seed);
+
+  // Heavenly stem & branch
+  const stemIdx   = (year - 4 + 400) % 10;
+  const branchIdx = (year - 4 + 400) % 12;
+  const stem   = STEMS[stemIdx];
+  const branch = BRANCH[branchIdx];
+  const zodiac = ZODIAC[branchIdx];
+  const hourBranch = BRANCH[hourIdx];
+
+  // Overall star (based on year branch)
+  const mainStarIdx = (branchIdx * 2 + (gender === 'female' ? 7 : 0)) % MAIN_STARS.length;
+  const mainStar = MAIN_STARS[mainStarIdx];
+
+  // Today info
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+  const todayStemIdx = (today.getFullYear() - 4 + 400) % 10;
+  const todayBranchIdx = (today.getFullYear() - 4 + 400) % 12;
+
+  // Overall score
+  const overallScore = Math.floor((mod.overall + mod.career + mod.love + mod.health) / 4);
+  const starCount = overallScore >= 80 ? 5 : overallScore >= 70 ? 4 : overallScore >= 60 ? 3 : overallScore >= 50 ? 2 : 1;
+
+  // Render header
+  document.getElementById('resDate').textContent = `${todayStr}｜${STEMS[todayStemIdx]}${BRANCH[todayBranchIdx]}年 流日運勢`;
+  document.getElementById('resTitle').textContent = `${stem}${branch}年 ${hourBranch}時生｜${zodiac}年命 · ${mainStar}守命`;
+
+  // Stars
+  document.getElementById('resStars').innerHTML = Array.from({length:5},(_,i)=>
+    `<span class="star ${i<starCount?'on':'off'}">★</span>`).join('');
+
+  // Score chips
+  const chips = [
+    {label:'綜合運', val:overallScore},
+    {label:'事業財', val:mod.career},
+    {label:'感情桃花', val:mod.love},
+    {label:'健康', val:mod.health},
+  ];
+  document.getElementById('resScores').innerHTML = chips.map(c=>
+    `<div class="score-chip"><span class="label">${c.label}</span><span class="val">${c.val}</span></div>`
+  ).join('');
+
+  // Texts
+  const allTexts = OVERALL_TEXTS.flat();
+  document.getElementById('resOverall').textContent  = allTexts[(seed^today.getDate())%allTexts.length];
+  document.getElementById('resCareer').textContent   = CAREER_TEXTS[(seed+1)%CAREER_TEXTS.length];
+  document.getElementById('resLove').textContent     = LOVE_TEXTS[(seed+2)%LOVE_TEXTS.length];
+  document.getElementById('resHealth').textContent   = HEALTH_TEXTS[(seed+3)%HEALTH_TEXTS.length];
+
+  // Palace grid (6 key palaces)
+  const keyPalaces = [0,4,2,8,5,10]; // 命、財帛、夫妻、事業、疾厄、福德
+  document.getElementById('resPalaces').innerHTML = keyPalaces.map(pi=>{
+    const star = palaceStar(seed, pi);
+    const nature = STAR_NATURE[star] || '吉星入位';
+    return `<div class="palace">
+      <div class="p-name">${PALACES[pi]}</div>
+      <div class="p-star">${star}</div>
+      <div class="p-mood">${nature.slice(0,6)}</div>
+    </div>`;
+  }).join('');
+
+  // Tip
+  const tip = TIPS[seed % TIPS.length];
+  document.getElementById('resTip').innerHTML = `<strong>${tip.icon} ${tip.title}</strong>${tip.text}`;
+
+  document.getElementById('result').style.display = 'block';
+  document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// Set max date to today
+document.getElementById('birthDate').max = new Date().toISOString().split('T')[0];
+</script>
+</body>
+</html>
